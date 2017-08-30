@@ -23,7 +23,7 @@
 		  var scene = new THREE.Scene();
 		  var camera = new THREE.PerspectiveCamera( 75, window.innerWidth / window.innerHeight, 0.1, 1000 );
 		  
-		  var renderer = new THREE.WebGLRenderer({webgl2: true});
+		  var renderer = new THREE.WebGLRenderer({webgl2: true, preserveDrawingBuffer: true});
 		  renderer.setSize( window.innerWidth, window.innerHeight );
 		  document.body.appendChild( renderer.domElement );
 
@@ -58,14 +58,9 @@
 
 
 function animate() {
-        camera.position.z --;
-
-	if (camera.position.z < 900) {
-          camera.position.z = 1000;
-}
-
 	requestAnimationFrame( animate );
 	renderer.render( scene, camera );
+	step();
         if (!once) {
 		  once = true;
                   setTimeout(doShadama, 0);

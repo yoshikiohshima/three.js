@@ -56,11 +56,13 @@ var framebufferF;
 var framebufferR;
 var framebufferD;  // for three js u8rgba texture
 
+var framebufferD0;  // for debugging u8rgba texture
+var framebufferD1;  // for debugging u8rgba texture
+
 var debugTexture0;
 var debugTexture1;
 
 var env = env || {};
-
 
 function initBreedVAO(gl) {
     var allIndices = new Array(T * T * 2);
@@ -530,9 +532,7 @@ class Breed {
     state.useProgram(prog.program);
     gl.bindVertexArray(prog.vao);
 
-    gl.enable(gl.BLEND);
-      //gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
-    //    gl.blendFunc(gl.ONE, gl.ONE);
+    state.setBlending(THREE.NormalBlending);
 
     state.activeTexture(gl.TEXTURE0);
     state.bindTexture(gl.TEXTURE_2D, this.x);
@@ -869,25 +869,22 @@ function debugDisplay(objName, name) {
     var prog = programs["debugPatch"];
 
     if (forBreed) {
-        setTargetBuffer(gl, framebufferD, debugTexture0);
+        setTargetBuffer(gl, framebufferD0, debugTexture0);
     } else {
-        setTargetBuffer(gl, framebufferF, debugTexture1);
+        setTargetBuffer(gl, framebufferD1, debugTexture1);
     }
 
-    gl.useProgram(prog.program);
+    state.useProgram(prog.program);
     gl.bindVertexArray(prog.vao);
-
+ 
     var tex = object[name];
 
-    gl.activeTexture(gl.TEXTURE0);
-    gl.bindTexture(gl.TEXTURE_2D, tex);
-
-    gl.viewport(0, 0, width, height);
-
+    state.activeTexture(gl.TEXTURE0);
+    state.bindTexture(gl.TEXTURE_2D, tex);
     gl.uniform1i(prog.uniLocations["u_value"], 0);
 
-    gl.clearColor(0.0, 0.0, 0.0, 0.0);
-    gl.clear(gl.COLOR_BUFFER_BIT);
+    renderer.setClearColor(new THREE.Color(0x000000));
+    renderer.clearColor();
 
     gl.drawArrays(gl.TRIANGLES, 0, 6);
     gl.flush();
@@ -912,11 +909,8 @@ function debugDisplay(objName, name) {
 
     var img = new ImageData(debugArray2, width, height);
     debugCanvas1.getContext("2d").putImageData(img, 0, 0);
-    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    setTargetBuffer(gl, null, null);
 
-      if (realViewport) {
-	  gl.viewport(0, 0, realViewport[2], realViewport[3]);
-      }
     gl.bindVertexArray(null);
 }
 
@@ -1439,25 +1433,34 @@ function initialize(threeRenderer) {
     programs["diffusePatch"] = diffusePatchProgram(gl);
     programs["copy"] = copyProgram(gl);
 
- debugTexture0 = createTexture(gl, new Float32Array(T*T*4), gl.FLOAT, T, T);
- debugTexture1 = createTexture(gl, new Float32Array(FW*FH*4), gl.FLOAT, FW, FH);
+    debugTexture0 = createTexture(gl, new Float32Array(T*T*4), gl.FLOAT, T, T);
+    debugTexture1 = createTexture(gl, new Float32Array(FW*FH*4), gl.FLOAT, FW, FH);
 
-    var tmp = createTexture(gl, new Float32Array(T * T), gl.R32F, T, T);
+    var tmp;
+    tmp = createTexture(gl, new Float32Array(T * T), gl.R32F, T, T);
     framebufferT = makeFramebuffer(tmp, gl.R32F, T, T);
     gl.deleteTexture(tmp);
 
-    var tmp = createTexture(gl, new Float32Array(FW * FH), gl.R32F, FW, FH);
+    tmp = createTexture(gl, new Float32Array(FW * FH), gl.R32F, FW, FH);
     framebufferR = makeFramebuffer(tmp, gl.R32F, FW, FH);
     gl.deleteTexture(tmp);
 
     tmp = createTexture(gl, new Float32Array(FW*FH*4), gl.FLOAT, FW, FH);
     framebufferF = makeFramebuffer(tmp, gl.FLOAT, FW, FH);
     gl.deleteTexture(tmp);
-
-
-    var tmp = createTexture(gl, new Uint8Array(FW*FH*4), gl.UNSIGNED_BYTE, FW, FH);
+    
+    tmp = createTexture(gl, new Uint8Array(FW*FH*4), gl.UNSIGNED_BYTE, FW, FH);
     framebufferD = makeFramebuffer(tmp, gl.UNSIGNED_BYTE, FW, FH);
     gl.deleteTexture(tmp);
+
+    tmp = createTexture(gl, new Float32Array(T*T*4), gl.FLOAT, T, T);
+    framebufferD0 = makeFramebuffer(tmp, gl.FLOAT, T, T);
+    gl.deleteTexture(tmp);
+
+    tmp = createTexture(gl, new Float32Array(FW*FH*4), gl.FLOAT, FW, FH);
+    framebufferD1 = makeFramebuffer(tmp, gl.FLOAT, FW, FH);
+    gl.deleteTexture(tmp);
+
 
     initEnv(function() {
 	//runner();
@@ -1480,20 +1483,20 @@ def setColor() {
 }
 
 def move() {
-  this.x = 100;
-  this.y = 100;
+  this.x = this.x + this.dx;
+  this.y = this.y + this.dy;
 }
 
-static s1() {
+static setup() {
     MyBreed.setCount(100000);
     MyBreed.fillRandom("x", 0, 512);
     MyBreed.fillRandom("y", 0, 512);
     MyBreed.fillRandomDir("dx", "dy");
     MyBreed.setColor();
-    MyBreed.draw();
+//    MyBreed.draw();
 }
 
-static s2() {
+static loop() {
     Display.clear();
     MyBreed.move();
     MyBreed.draw();
@@ -1515,9 +1518,6 @@ function maybeRunner() {
 function runner() {
     animationRequested = false;
     step();
-    if (readPixelCallback) {
-	readPixelCallback(readPixels());
-    }
     if (keepGoing) {
 	window.requestAnimationFrame(runner);
 	animationRequested = true;
