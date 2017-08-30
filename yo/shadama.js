@@ -1,4 +1,4 @@
-var TEXTURE_SIZE = 512;
+var TEXTURE_SIZE = 1024;
 var FIELD_WIDTH = 512;
 var FIELD_HEIGHT = 512;
 var ENLARGE = 1;
@@ -59,7 +59,7 @@ var framebufferD1;  // for debugging u8rgba texture
 
 var env = env || {};
 
-function initBreedVAO(gl) {
+function initBreedVAO() {
     var allIndices = new Array(T * T * 2);
     for (var j = 0; j < T; j++) {
         for (var i = 0; i < T; i++) {
@@ -80,11 +80,11 @@ function initBreedVAO(gl) {
     var attrStrides = new Array(1);
     attrStrides[0] = 2;
 
-    setBufferAttribute(gl, [positionBuffer], [allIndices], attrLocations, attrStrides);
+    setBufferAttribute([positionBuffer], [allIndices], attrLocations, attrStrides);
     gl.bindVertexArray(null);
 }
 
-function initPatchVAO(gl) {
+function initPatchVAO() {
     patchVAO = gl.createVertexArray();
     gl.bindVertexArray(patchVAO);
 
@@ -104,11 +104,11 @@ function initPatchVAO(gl) {
     var attrStrides = new Array(1);
     attrStrides[0] = 2;
 
-    setBufferAttribute(gl, [positionBuffer], [rect], attrLocations, attrStrides);
+    setBufferAttribute([positionBuffer], [rect], attrLocations, attrStrides);
     gl.bindVertexArray(null);
 }
 
-function createShader(gl, id, source) {
+function createShader(id, source) {
     var type;
     if (id.endsWith(".vert")) {
         type = gl.VERTEX_SHADER;
@@ -135,7 +135,7 @@ function createShader(gl, id, source) {
     gl.deleteShader(shader);
 }
 
-function createProgram(gl, vertexShader, fragmentShader) {
+function createProgram(vertexShader, fragmentShader) {
     var program = gl.createProgram();
     gl.attachShader(program, vertexShader);
     gl.attachShader(program, fragmentShader);
@@ -208,7 +208,7 @@ function loadShadama(id, source) {
     return source;
 }
 
-function createTexture(gl, data, type, width, height) {
+function createTexture(data, type, width, height) {
     if (!type) {
         type = gl.UNSIGNED_BYTE;
     }
@@ -267,14 +267,14 @@ function makeFramebuffer(tex, format, width, height) {
     return target;
 }
 
-function setTargetBuffer(gl, buffer, tex) {
+function setTargetBuffer(buffer, tex) {
     renderer.setRenderTarget(buffer);
     if (buffer) {
 	gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, tex, 0);
     }
 }
 
-function setTargetBuffers(gl, buffer, tex) {
+function setTargetBuffers(buffer, tex) {
     if (!buffer) {
 	renderer.setRenderTarget(null, gl.DRAW_FRAMEBUFFER);
 	return;
@@ -290,7 +290,7 @@ function setTargetBuffers(gl, buffer, tex) {
     gl.drawBuffers(list);
 }
 
-function setBufferAttribute(gl, buffers, data, attrL, attrS) {
+function setBufferAttribute(buffers, data, attrL, attrS) {
     for (var i in buffers) {
         gl.bindBuffer(gl.ARRAY_BUFFER, buffers[i]);
         gl.bufferData(gl.ARRAY_BUFFER,
@@ -305,15 +305,15 @@ function Display() {
 
 Display.prototype.clear = function() {
     if (targetTexture) {
-	setTargetBuffer(gl, framebufferD, targetTexture);
+	setTargetBuffer(framebufferD, targetTexture);
     } else {
-	setTargetBuffer(gl, null, null);
+	setTargetBuffer(null, null);
     }
 
     renderer.clearColor();
 
     if (!targetTexture) {
-	setTargetBuffer(gl, null, null);
+	setTargetBuffer(null, null);
     }
 }
 
@@ -332,7 +332,7 @@ function textureCopy(obj, src, dst) {
         buffer = framebufferR;
     }
 
-    setTargetBuffer(gl, buffer, dst);
+    setTargetBuffer(buffer, dst);
 
     state.useProgram(prog.program);
     gl.bindVertexArray(prog.vao);
@@ -345,7 +345,7 @@ function textureCopy(obj, src, dst) {
     gl.drawArrays(gl.TRIANGLES, 0, 6);
 
     gl.flush();
-    setTargetBuffer(gl, null, null);
+    setTargetBuffer(null, null);
 
     gl.bindVertexArray(null);
 }
@@ -376,8 +376,8 @@ var updateOwnVariable = function(obj, name, optData) {
     }
 
     obj.own[name] = name;
-    obj[name] = createTexture(gl, ary, gl.R32F, width, height);
-    obj["new"+name] = createTexture(gl, ary, gl.R32F, width, height);
+    obj[name] = createTexture(ary, gl.R32F, width, height);
+    obj["new"+name] = createTexture(ary, gl.R32F, width, height);
 }
 
 var removeOwnVariable = function(obj, name) {
@@ -398,7 +398,7 @@ function setTarget(aTexture) {
 
 function makeTarget() {
     if (!targetTexture) {
-        targetTexture = createTexture(gl, new Uint8Array(FW*FH*4), gl.UNSIGNED_BYTE, FW, FH);
+        targetTexture = createTexture(new Uint8Array(FW*FH*4), gl.UNSIGNED_BYTE, FW, FH);
     }
     return targetTexture;
 }
@@ -505,9 +505,9 @@ class Breed {
       var prog = programs["drawBreed"];
 
       if (targetTexture) {
-	  setTargetBuffer(gl, framebufferD, targetTexture);
+	  setTargetBuffer(framebufferD, targetTexture);
       } else {
-	  setTargetBuffer(gl, null, null);
+	  setTargetBuffer(null, null);
       }
       
       state.useProgram(prog.program);
@@ -549,7 +549,7 @@ class Breed {
       state.setBlending(THREE.NoBlending);
       
       if (!targetTexture) {
-	  renderer.setRenderTarget(null);
+	  setTargetBuffer(null, null);
       }
       gl.bindVertexArray(null);
   }
@@ -575,9 +575,9 @@ class Patch {
       var prog = programs["drawPatch"];
 
       if (targetTexture) {
-	  setTargetBuffer(gl, framebufferD, targetTexture);
+	  setTargetBuffer(framebufferD, targetTexture);
       } else {
-	  setTargetBuffer(gl, null, null);
+	  setTargetBuffer(null, null);
       }
       
       state.useProgram(prog.program);
@@ -607,7 +607,7 @@ class Patch {
       state.setBlending(THREE.NoBlending);
 
       if (!targetTexture) {
-	  setTargetBuffer(gl, null, null);
+	  setTargetBuffer(null, null);
       }
 
       gl.bindVertexArray(null);
@@ -619,7 +619,7 @@ class Patch {
       var target = this["new"+name];
       var source = this[name];
       
-      setTargetBuffer(gl, framebufferR, target);
+      setTargetBuffer(framebufferR, target);
 
       state.useProgram(prog.program);
       gl.bindVertexArray(prog.vao);
@@ -631,7 +631,7 @@ class Patch {
       gl.drawArrays(gl.TRIANGLES, 0, 6);
 
       gl.flush();
-      setTargetBuffer(gl, null, null);
+      setTargetBuffer(null, null);
 
       this["new"+name] = source;
       this[name] = target;
@@ -794,11 +794,11 @@ void main(void) {
 }
 
 
-function makePrimitive(gl, name, uniforms, vao) {
-    var vs = createShader(gl, name + ".vert", shaders[name+'.vert']);
-    var fs = createShader(gl, name + ".frag", shaders[name+'.frag']);
+function makePrimitive(name, uniforms, vao) {
+    var vs = createShader(name + ".vert", shaders[name+'.vert']);
+    var fs = createShader(name + ".frag", shaders[name+'.frag']);
 
-    var prog = createProgram(gl, vs, fs);
+    var prog = createProgram(vs, fs);
 
     var uniLocations = {};
     uniforms.forEach(function (n) {
@@ -808,24 +808,24 @@ function makePrimitive(gl, name, uniforms, vao) {
     return {program: prog, uniLocations: uniLocations, vao: vao};
 }
 
-function drawBreedProgram(gl) {
-    return makePrimitive(gl, "drawBreed", ["u_resolution", "u_particleLength", "u_x", "u_y", "u_r", "u_g", "u_b", "u_a"], breedVAO);
+function drawBreedProgram() {
+    return makePrimitive("drawBreed", ["u_resolution", "u_particleLength", "u_x", "u_y", "u_r", "u_g", "u_b", "u_a"], breedVAO);
 }
 
-function drawPatchProgram(gl) {
-    return makePrimitive(gl, "drawPatch", ["u_a", "u_r", "u_g", "u_b"], patchVAO);
+function drawPatchProgram() {
+    return makePrimitive("drawPatch", ["u_a", "u_r", "u_g", "u_b"], patchVAO);
 }
 
-function debugPatchProgram(gl) {
-    return makePrimitive(gl, "debugPatch", ["u_value"], patchVAO);
+function debugPatchProgram() {
+    return makePrimitive("debugPatch", ["u_value"], patchVAO);
 }
 
-function diffusePatchProgram(gl) {
-    return makePrimitive(gl, "diffusePatch", ["u_value"], patchVAO);
+function diffusePatchProgram() {
+    return makePrimitive("diffusePatch", ["u_value"], patchVAO);
 }
 
-function copyProgram(gl) {
-    return makePrimitive(gl, "copy", ["u_value"], patchVAO);
+function copyProgram() {
+    return makePrimitive("copy", ["u_value"], patchVAO);
 }
 
 function debugDisplay(objName, name) {
@@ -845,9 +845,9 @@ function debugDisplay(objName, name) {
     var prog = programs["debugPatch"];
 
     if (forBreed) {
-        setTargetBuffer(gl, framebufferD0, debugTexture0);
+        setTargetBuffer(framebufferD0, debugTexture0);
     } else {
-        setTargetBuffer(gl, framebufferD1, debugTexture1);
+        setTargetBuffer(framebufferD1, debugTexture1);
     }
 
     state.useProgram(prog.program);
@@ -885,7 +885,7 @@ function debugDisplay(objName, name) {
 
     var img = new ImageData(debugArray2, width, height);
     debugCanvas1.getContext("2d").putImageData(img, 0, 0);
-    setTargetBuffer(gl, null, null);
+    setTargetBuffer(null, null);
 
     gl.bindVertexArray(null);
 }
@@ -955,8 +955,8 @@ function programFromTable(table, vert, frag, name) {
         var debugName = name;
 	if (debugName === "clear") {
 	}
-        var prog = createProgram(gl, createShader(gl, name + ".vert", vert),
-                                 createShader(gl, name + ".frag", frag));
+        var prog = createProgram(createShader(name + ".vert", vert),
+                                 createShader(name + ".frag", frag));
         var vao = breedVAO;
         var uniLocations = {};
 
@@ -1001,9 +1001,9 @@ function programFromTable(table, vert, frag, name) {
 
             var targets = outs.map(function(pair) {return objects[pair[0]]["new" + pair[1]]});
             if (forBreed) {
-                setTargetBuffers(gl, framebufferT, targets);
+                setTargetBuffers(framebufferT, targets);
             } else {
-                setTargetBuffers(gl, framebufferF, targets);
+                setTargetBuffers(framebufferF, targets);
             }
 
             state.useProgram(prog);
@@ -1055,7 +1055,7 @@ function programFromTable(table, vert, frag, name) {
 //            }
             gl.drawArrays(gl.POINTS, 0, object.count);
             gl.flush();
-            setTargetBuffers(gl, null, null);
+            setTargetBuffers(null, null);
             for (var i = 0; i < outs.length; i++) {
                 var pair = outs[i];
                 var o = objects[pair[0]];
@@ -1224,41 +1224,41 @@ function initialize(threeRenderer) {
 
     var ext = gl.getExtension("EXT_color_buffer_float");
 
-    initBreedVAO(gl);
-    initPatchVAO(gl);
+    initBreedVAO();
+    initPatchVAO();
     initCompiler();
 
-    programs["drawBreed"] = drawBreedProgram(gl);
-    programs["drawPatch"] = drawPatchProgram(gl);
-    programs["debugPatch"] = debugPatchProgram(gl);
-    programs["diffusePatch"] = diffusePatchProgram(gl);
-    programs["copy"] = copyProgram(gl);
+    programs["drawBreed"] = drawBreedProgram();
+    programs["drawPatch"] = drawPatchProgram();
+    programs["debugPatch"] = debugPatchProgram();
+    programs["diffusePatch"] = diffusePatchProgram();
+    programs["copy"] = copyProgram();
 
-    debugTexture0 = createTexture(gl, new Float32Array(T*T*4), gl.FLOAT, T, T);
-    debugTexture1 = createTexture(gl, new Float32Array(FW*FH*4), gl.FLOAT, FW, FH);
+    debugTexture0 = createTexture(new Float32Array(T*T*4), gl.FLOAT, T, T);
+    debugTexture1 = createTexture(new Float32Array(FW*FH*4), gl.FLOAT, FW, FH);
 
     var tmp;
-    tmp = createTexture(gl, new Float32Array(T * T), gl.R32F, T, T);
+    tmp = createTexture(new Float32Array(T * T), gl.R32F, T, T);
     framebufferT = makeFramebuffer(tmp, gl.R32F, T, T);
     gl.deleteTexture(tmp);
 
-    tmp = createTexture(gl, new Float32Array(FW * FH), gl.R32F, FW, FH);
+    tmp = createTexture(new Float32Array(FW * FH), gl.R32F, FW, FH);
     framebufferR = makeFramebuffer(tmp, gl.R32F, FW, FH);
     gl.deleteTexture(tmp);
 
-    tmp = createTexture(gl, new Float32Array(FW*FH*4), gl.FLOAT, FW, FH);
+    tmp = createTexture(new Float32Array(FW*FH*4), gl.FLOAT, FW, FH);
     framebufferF = makeFramebuffer(tmp, gl.FLOAT, FW, FH);
     gl.deleteTexture(tmp);
     
-    tmp = createTexture(gl, new Uint8Array(FW*FH*4), gl.UNSIGNED_BYTE, FW, FH);
+    tmp = createTexture(new Uint8Array(FW*FH*4), gl.UNSIGNED_BYTE, FW, FH);
     framebufferD = makeFramebuffer(tmp, gl.UNSIGNED_BYTE, FW, FH);
     gl.deleteTexture(tmp);
 
-    tmp = createTexture(gl, new Float32Array(T*T*4), gl.FLOAT, T, T);
+    tmp = createTexture(new Float32Array(T*T*4), gl.FLOAT, T, T);
     framebufferD0 = makeFramebuffer(tmp, gl.FLOAT, T, T);
     gl.deleteTexture(tmp);
 
-    tmp = createTexture(gl, new Float32Array(FW*FH*4), gl.FLOAT, FW, FH);
+    tmp = createTexture(new Float32Array(FW*FH*4), gl.FLOAT, FW, FH);
     framebufferD1 = makeFramebuffer(tmp, gl.FLOAT, FW, FH);
     gl.deleteTexture(tmp);
 
@@ -1274,7 +1274,11 @@ function mytest() {
 
 function testCode() {
     return `
-breed MyBreed (x, y, dx, dy, r, g, b, a)
+program "Bounce"
+
+breed Turtle (x, y, dx, dy, r, g, b, a)
+breed Filler (x, y)
+patch Field (nx, ny, r, g, b, a)
 
 def setColor() {
   this.r = this.x / 512.0;
@@ -1283,25 +1287,96 @@ def setColor() {
   this.a = 1.0;
 }
 
-def move() {
-  this.x = this.x + this.dx;
-  this.y = this.y + this.dy;
+def clear(field) {
+  field.r = 0.0;
+  field.g = 0.0;
+  field.b = 0.0;
+  field.a = 0.0;
+  field.nx = 0.0;
+  field.ny = 0.0;
+}
+
+def fillCircle(cx, cy, r, field) {
+  var dx = this.x - cx;
+  var dy = this.y - cy;
+  var dr = sqrt(dx * dx + dy * dy);
+  if (dr < r) {
+    field.r = 0.2;
+    field.g = 0.2;
+    field.b = 0.8;
+    field.a = 1.0;
+    field.nx = dx / r;
+    field.ny = dy / r;
+  }
+}
+
+def zeroDir() {
+  this.dx = 0.0;
+  this.dy = 0.0;
+}
+ 
+def bounce(field) {
+  var nx = field.nx;
+  var ny = field.ny;
+  var dx = this.dx;
+  var dy = this.dy - 0.01;
+  var dot = dx * nx + dy * ny;
+  var rx = dx;
+  var ry = dy;
+  var origV = sqrt(dx * dx + dy * dy);
+
+  if (dot < 0.0) {
+    rx = dx - 2.0 * dot * nx;
+    ry = dy - 2.0 * dot * ny;
+    var norm = sqrt(rx * rx + ry * ry);
+    rx = rx / (norm / origV);
+    ry = ry / (norm / origV);
+  }
+
+  var newX = this.x + dx;
+  var newY = this.y + dy;
+
+  if (newX < 0.0) {
+    newX = -newX;
+    rx = -rx * 0.9;
+  }
+  if (newX > u_resolution.x) {
+    newX = u_resolution.x - (newX - u_resolution.x);
+    rx = -rx * 0.9;
+  }
+  if (newY < 0.0) {
+    newY = mod(newY, u_resolution.y);
+    ry = -0.1;
+  }
+  if (newY > u_resolution.y) {
+    newY = u_resolution.y - (newY - u_resolution.y);
+    ry = -ry;
+  }
+
+  this.x = newX;
+  this.y = newY;
+  this.dx = rx;
+  this.dy = ry;
 }
 
 static setup() {
-    MyBreed.setCount(100000);
-    MyBreed.fillRandom("x", 0, 512);
-    MyBreed.fillRandom("y", 0, 512);
-    MyBreed.fillRandomDir("dx", "dy");
-    MyBreed.setColor();
-//    MyBreed.draw();
+  Filler.fillSpace("x", "y", 512, 512);
+  Turtle.setCount(200000);
+  Turtle.fillRandom("x", 0, 512);
+  Turtle.fillRandom("y", 256, 512);
+  Turtle.fillRandomDir("dx", "dy");
+  Turtle.setColor();
 }
 
-static loop() {
-    Display.clear();
-    MyBreed.move();
-    MyBreed.draw();
-}`;
+static loop(env) {
+  Filler.clear(Field);
+  Filler.fillCircle(75, 75, 20, Field);
+  Filler.fillCircle(300, 95, 25, Field);
+  Turtle.bounce(Field);
+  Field.draw();
+  Turtle.draw();
+}
+`;
 }
 
 function mytest2() {

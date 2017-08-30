@@ -19099,7 +19099,7 @@
 			}
 
 			if (_isWebGL2) {
-				var ary = new Uint16Array(renderTarget.width * renderTarget.height * 4);
+				var ary = new Uint8Array(renderTarget.width * renderTarget.height * 4);
 			} else {
 				var ary = null;
 			}
