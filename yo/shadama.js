@@ -38,18 +38,16 @@ var programName = null;
 var watcherList;  // DOM
 var watcherElements = watcherElements || []; // [DOM]
 
-var shadamaCanvas;
-var realViewport;
-
 var keepGoing = true;
 var animationRequested = false;
+
+var debugTexture0;
+var debugTexture1;
 
 var debugCanvas1;
 var debugArray;
 var debugArray1;
 var debugArray2;
-
-var times = times || [];
 
 var framebufferT;
 var framebufferF;
@@ -58,9 +56,6 @@ var framebufferD;  // for three js u8rgba texture
 
 var framebufferD0;  // for debugging u8rgba texture
 var framebufferD1;  // for debugging u8rgba texture
-
-var debugTexture0;
-var debugTexture1;
 
 var env = env || {};
 
@@ -85,7 +80,7 @@ function initBreedVAO(gl) {
     var attrStrides = new Array(1);
     attrStrides[0] = 2;
 
-    set_buffer_attribute(gl, [positionBuffer], [allIndices], attrLocations, attrStrides);
+    setBufferAttribute(gl, [positionBuffer], [allIndices], attrLocations, attrStrides);
     gl.bindVertexArray(null);
 }
 
@@ -109,7 +104,7 @@ function initPatchVAO(gl) {
     var attrStrides = new Array(1);
     attrStrides[0] = 2;
 
-    set_buffer_attribute(gl, [positionBuffer], [rect], attrLocations, attrStrides);
+    setBufferAttribute(gl, [positionBuffer], [rect], attrLocations, attrStrides);
     gl.bindVertexArray(null);
 }
 
@@ -151,7 +146,7 @@ function createProgram(gl, vertexShader, fragmentShader) {
     }
 
     console.log(gl.getProgramInfoLog(program));
-    alert(gl.getProgramInfoLog(program));
+//    alert(gl.getProgramInfoLog(program));
     gl.deleteProgram(program);
 }
 
@@ -269,7 +264,6 @@ function makeFramebuffer(tex, format, width, height) {
 
     var target = new THREE.WebGLRenderTarget(width, height);
     renderer.properties.get(target).__webglFramebuffer = buffer;
-    //target.__webglFramebuffer = buffer;
     return target;
 }
 
@@ -296,7 +290,7 @@ function setTargetBuffers(gl, buffer, tex) {
     gl.drawBuffers(list);
 }
 
-function set_buffer_attribute(gl, buffers, data, attrL, attrS) {
+function setBufferAttribute(gl, buffers, data, attrL, attrS) {
     for (var i in buffers) {
         gl.bindBuffer(gl.ARRAY_BUFFER, buffers[i]);
         gl.bufferData(gl.ARRAY_BUFFER,
@@ -304,14 +298,6 @@ function set_buffer_attribute(gl, buffers, data, attrL, attrS) {
         gl.enableVertexAttribArray(attrL[i]);
         gl.vertexAttribPointer(attrL[i], attrS[i], gl.FLOAT, false, 0, 0);
     }
-}
-
-function createIBO (gl, data) {
-    var ibo = gl.createBuffer();
-    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, ibo);
-    gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Int32Array(data), gl.STATIC_DRAW);
-    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, null);
-    return ibo;
 }
 
 function Display() {
@@ -329,11 +315,6 @@ Display.prototype.clear = function() {
     if (!targetTexture) {
 	setTargetBuffer(gl, null, null);
     }
-}
-
-Display.prototype.playSound = function(name) {
-    var dom = document.getElementById(name);
-    if (dom) {dom.play()}
 }
 
 function textureCopy(obj, src, dst) {
@@ -521,54 +502,56 @@ class Breed {
   }
 
   draw() {
-    var prog = programs["drawBreed"];
+      var prog = programs["drawBreed"];
 
-    if (targetTexture) {
-      setTargetBuffer(gl, framebufferD, targetTexture);
-    } else {
-      gl.bindFramebuffer(gl.FRAMEBUFFER, null);
-    }
+      if (targetTexture) {
+	  setTargetBuffer(gl, framebufferD, targetTexture);
+      } else {
+	  setTargetBuffer(gl, null, null);
+      }
+      
+      state.useProgram(prog.program);
+      gl.bindVertexArray(prog.vao);
+  
+//    gl.enable(gl.BLEND);
+//    gl.blendFunc(gl.ONE, gl.ONE);
+      state.setBlending(THREE.NormalBlending);
+      
+      state.activeTexture(gl.TEXTURE0);
+      state.bindTexture(gl.TEXTURE_2D, this.x);
+      gl.uniform1i(prog.uniLocations["u_x"], 0);
+      
+      state.activeTexture(gl.TEXTURE1);
+      state.bindTexture(gl.TEXTURE_2D, this.y);
+      gl.uniform1i(prog.uniLocations["u_y"], 1);
+      
+      state.activeTexture(gl.TEXTURE2);
+      state.bindTexture(gl.TEXTURE_2D, this.r);
+      gl.uniform1i(prog.uniLocations["u_r"], 2);
+      
+      state.activeTexture(gl.TEXTURE3);
+      state.bindTexture(gl.TEXTURE_2D, this.g);
+      gl.uniform1i(prog.uniLocations["u_g"], 3);
+      
+      state.activeTexture(gl.TEXTURE4);
+      state.bindTexture(gl.TEXTURE_2D, this.b);
+      gl.uniform1i(prog.uniLocations["u_b"], 4);
 
-    state.useProgram(prog.program);
-    gl.bindVertexArray(prog.vao);
-
-    state.setBlending(THREE.NormalBlending);
-
-    state.activeTexture(gl.TEXTURE0);
-    state.bindTexture(gl.TEXTURE_2D, this.x);
-    gl.uniform1i(prog.uniLocations["u_x"], 0);
-
-    state.activeTexture(gl.TEXTURE1);
-    state.bindTexture(gl.TEXTURE_2D, this.y);
-    gl.uniform1i(prog.uniLocations["u_y"], 1);
-
-    state.activeTexture(gl.TEXTURE2);
-    state.bindTexture(gl.TEXTURE_2D, this.r);
-    gl.uniform1i(prog.uniLocations["u_r"], 2);
-
-    state.activeTexture(gl.TEXTURE3);
-    state.bindTexture(gl.TEXTURE_2D, this.g);
-    gl.uniform1i(prog.uniLocations["u_g"], 3);
-
-    state.activeTexture(gl.TEXTURE4);
-    state.bindTexture(gl.TEXTURE_2D, this.b);
-    gl.uniform1i(prog.uniLocations["u_b"], 4);
-
-    state.activeTexture(gl.TEXTURE5);
-    state.bindTexture(gl.TEXTURE_2D, this.a);
-    gl.uniform1i(prog.uniLocations["u_a"], 5);
-
-    gl.uniform2f(prog.uniLocations["u_resolution"], FW, FH);
-    gl.uniform1f(prog.uniLocations["u_particleLength"], T);
-
-    gl.drawArrays(gl.POINTS, 0, this.count);
-    gl.flush();
-    state.setBlending(THREE.NoBlending);
-
-    if (!targetTexture) {
-	renderer.setRenderTarget(null);
-    }
-    gl.bindVertexArray(null);
+      state.activeTexture(gl.TEXTURE5);
+      state.bindTexture(gl.TEXTURE_2D, this.a);
+      gl.uniform1i(prog.uniLocations["u_a"], 5);
+      
+      gl.uniform2f(prog.uniLocations["u_resolution"], FW, FH);
+      gl.uniform1f(prog.uniLocations["u_particleLength"], T);
+      
+      gl.drawArrays(gl.POINTS, 0, this.count);
+      gl.flush();
+      state.setBlending(THREE.NoBlending);
+      
+      if (!targetTexture) {
+	  renderer.setRenderTarget(null);
+      }
+      gl.bindVertexArray(null);
   }
 
   setCount(n) {
@@ -589,80 +572,73 @@ class Patch {
   }
 
   draw() {
-      if (targetTexture) {
-	  setTargetBuffer(gl, framebufferF, targetTexture);
-      } else {
-	  gl.bindFramebuffer(gl.FRAMEBUFFER, null);
-      }
       var prog = programs["drawPatch"];
+
+      if (targetTexture) {
+	  setTargetBuffer(gl, framebufferD, targetTexture);
+      } else {
+	  setTargetBuffer(gl, null, null);
+      }
       
-      gl.useProgram(prog.program);
+      state.useProgram(prog.program);
       gl.bindVertexArray(prog.vao);
       
-      gl.activeTexture(gl.TEXTURE0);
-      gl.bindTexture(gl.TEXTURE_2D, this.r);
+      state.setBlending(THREE.NormalBlending);
+      
+      state.activeTexture(gl.TEXTURE0);
+      state.bindTexture(gl.TEXTURE_2D, this.r);
       gl.uniform1i(prog.uniLocations["u_r"], 0);
       
-      gl.activeTexture(gl.TEXTURE0 + 1);
-      gl.bindTexture(gl.TEXTURE_2D, this.g);
+      state.activeTexture(gl.TEXTURE0 + 1);
+      state.bindTexture(gl.TEXTURE_2D, this.g);
       gl.uniform1i(prog.uniLocations["u_g"], 1);
       
-      gl.activeTexture(gl.TEXTURE0 + 2);
-      gl.bindTexture(gl.TEXTURE_2D, this.b);
+      state.activeTexture(gl.TEXTURE0 + 2);
+      state.bindTexture(gl.TEXTURE_2D, this.b);
       gl.uniform1i(prog.uniLocations["u_b"], 2);
       
-      gl.activeTexture(gl.TEXTURE0 + 3);
-      gl.bindTexture(gl.TEXTURE_2D, this.a);
+      state.activeTexture(gl.TEXTURE0 + 3);
+      state.bindTexture(gl.TEXTURE_2D, this.a);
       gl.uniform1i(prog.uniLocations["u_a"], 3);
       
 
-      gl.viewport(0, 0, FW, FH);
-      
       gl.drawArrays(gl.TRIANGLES, 0, 6);
       gl.flush();
+      state.setBlending(THREE.NoBlending);
+
       if (!targetTexture) {
-	  gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+	  setTargetBuffer(gl, null, null);
       }
-      
-      if (realViewport) {
-	  gl.viewport(0, 0, realViewport[2], realViewport[3]);
-      }
+
       gl.bindVertexArray(null);
   }
     
   diffuse(name) {
-    var prog = programs["diffusePatch"];
+      var prog = programs["diffusePatch"];
 
-    var target = this["new"+name];
-    var source = this[name];
+      var target = this["new"+name];
+      var source = this[name];
+      
+      setTargetBuffer(gl, framebufferR, target);
 
-    setTargetBuffer(gl, framebufferR, target);
+      state.useProgram(prog.program);
+      gl.bindVertexArray(prog.vao);
 
-    gl.useProgram(prog.program);
-    gl.bindVertexArray(prog.vao);
+      state.activeTexture(gl.TEXTURE0);
+      state.bindTexture(gl.TEXTURE_2D, source);
+      gl.uniform1i(prog.uniLocations["u_value"], 0);
 
-    gl.activeTexture(gl.TEXTURE0);
-    gl.bindTexture(gl.TEXTURE_2D, source);
+      gl.drawArrays(gl.TRIANGLES, 0, 6);
 
-    gl.viewport(0, 0, FW, FH);
+      gl.flush();
+      setTargetBuffer(gl, null, null);
 
-    gl.uniform1i(prog.uniLocations["u_value"], 0);
+      this["new"+name] = source;
+      this[name] = target;
 
-    gl.drawArrays(gl.TRIANGLES, 0, 6);
-
-    gl.flush();
-    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
-
-    this["new"+name] = source;
-    this[name] = target;
-
-      if (realViewport) {
-	  gl.viewport(0, 0, realViewport[2], realViewport[3]);
-      }
-    gl.bindVertexArray(null);
+      gl.bindVertexArray(null);
 
   };
-
 }
 
 
@@ -1160,37 +1136,12 @@ function resetSystem() {
     }
 }
 
-//function updateCode() {
-//    var code = editor.getValue();
-//    loadShadama(null, code);
-//    if (!programName) {
-//        programName = "My Cool Effect!";
-//    code = "program " + '"' + programName + '"\n' + code;
-//        editor.setValue(code);
-//    }
-//};
-
 function callSetup() {
     loadTime = window.performance.now() / 1000.0;
     env["time"] = 0.0;
     if (statics["setup"]) {
         statics["setup"](env);
     }
-}
-
-function addListeners(aCanvas) {
-    var rect = aCanvas.getBoundingClientRect();
-    var left = rect.left;
-    var top = rect.top;
-    aCanvas.addEventListener("mousemove", function(e) {
-        env.mousemove = {x: e.clientX - left, y: FH - (e.clientY - top)};
-    });
-    aCanvas.addEventListener("mousedown", function(e) {
-        env.mousedown = {x: e.clientX, y: FH - (e.clientY - top)};
-    });
-    aCanvas.addEventListener("mouseup", function(e) {
-        env.mouseup = {x: e.clientX, y: FH - (e.clientY - top)};
-    });
 }
 
 function emptyImageData(width, height) {
@@ -1215,138 +1166,6 @@ function initEnv(callback) {
     callback();
 }
 
-function makeClock() {
-    var aClock = document.createElement("canvas");
-    aClock.width = 40;
-    aClock.height = 40;
-    aClock.ticking = false;
-    aClock.hand = 0;
-    drawClock(aClock, 0, false);
-
-    aClock.onclick = function () {toggleScript(aClock.entry.scriptName)};
-
-    return aClock;
-}
-
-function stopClock(aClock) {
-    aClock.ticking = false;
-    drawClock(aClock);
-}
-
-function startClock(aClock) {
-    aClock.ticking = true;
-    drawClock(aClock);
-}
-
-function stopScript(name) {
-    delete steppers[name];
-    stopClock(detectEntry(name).clock);
-}
-
-function startScript(name) {
-    steppers[name] = name;
-    startClock(detectEntry(name).clock);
-}
-
-function toggleScript(name) {
-    if (steppers[name]) {
-        stopScript(name);
-    } else {
-        startScript(name);
-    }
-}
-
-function drawClock(aClock) {
-    var hand = aClock.hand;
-    var ticking = aClock.ticking;
-    function drawFace(ctx, radius, backColor) {
-        ctx.moveTo(0, 0);
-        ctx.beginPath();
-        ctx.arc(0, 0, radius, 0, 2*Math.PI);
-        ctx.fillStyle = backColor;
-        ctx.fill();
-
-        ctx.strokeStyle = '#333';
-        ctx.lineWidth = radius*0.1;
-        ctx.stroke();
-
-        ctx.beginPath();
-        ctx.arc(0, 0, radius*0.1, 0, 2*Math.PI);
-        ctx.fillStyle = "#333";
-        ctx.fill();
-    };
-
-    function drawHand(ctx, length, dir) {
-        ctx.beginPath();
-        ctx.lineWidth = 2;
-        ctx.lineCap = "round";
-        ctx.moveTo(0, 0);
-        ctx.rotate(dir);
-        ctx.lineTo(0, -length);
-        ctx.stroke();
-    };
-
-    var ctx = aClock.getContext('2d');
-    var backColor = ticking ? '#ffcccc' : '#ffffff';
-    var dir = hand / 360.0 * (Math.PI * 2.0);
-
-    ctx.transform(1, 0, 0, 1, 18, 18);
-    drawFace(aClock.getContext('2d'), 16, backColor);
-    drawHand(aClock.getContext('2d'), 10, dir);
-    ctx.resetTransform();
-}
-
-function makeEntry(name) {
-    var entry = document.createElement("div");
-    var aClock = makeClock();
-    entry.scriptName = name;
-    entry.appendChild(aClock);
-    entry.clock = aClock;
-    aClock.entry = entry;
-    var button = document.createElement("div");
-    button.className = "staticName";
-    button.innerHTML = name;
-    button.onclick = function() {
-        env["time"] = (window.performance.now() / 1000) - loadTime;
-        if (statics[entry.scriptName]) {
-            statics[entry.scriptName](env);
-        }
-    };
-    entry.appendChild(button);
-    return entry;
-}
-
-function detectEntry(name) {
-    for (var j = 0; j < watcherList.children.length; j++) {
-        var oldEntry = watcherList.children[j];
-        if (oldEntry.scriptName === name) {return oldEntry;}
-    }
-    return null;
-}
-
-function removeAll() {
-    while (watcherList.firstChild) {
-	watcherList.removeChild(watcherList.firstChild);
-    }
-}
-
-function addAll(elems) {
-    for (var j = 0; j < elems.length; j++) {
-        watcherList.appendChild(elems[j]);
-    }
-}
-
-function updateClocks() {
-    for (var j = 0; j < watcherList.children.length; j++) {
-        var child = watcherList.children[j];
-        var aClock = child.clock;
-        if (aClock.ticking) {
-            aClock.hand = (aClock.hand + 2) % 360;
-        }
-        drawClock(aClock);
-    }
-}
-
 function updateEnv() {
     function printNum(obj) {
         if (typeof obj !== "number") return obj;
@@ -1364,24 +1183,6 @@ function updateEnv() {
                .sort()
                .map((k)=>`${k}: ${print(env[k])}`);
     envList.innerHTML = `<pre>${list.join('\n')}</pre>`;
-}
-
-function populateList(newList) {
-    watcherElements = [];
-    for (var i = 0; i < newList.length; i++) {
-        var name = newList[i];
-        var entry = detectEntry(name);
-        if (!entry) {
-            entry = makeEntry(name);
-        }
-        watcherElements.push(entry);
-    }
-    removeAll();
-    addAll(watcherElements);
-
-    if (statics["loop"]) {
-        startScript("loop");
-    }
 }
 
 function runLoop() {
@@ -1504,7 +1305,6 @@ static loop() {
 }
 
 function mytest2() {
-    debugger;
    statics["s2"]();
 }
 
@@ -1534,10 +1334,6 @@ function step() {
             func(env);
         }
     }
-}
-
-function getCanvas() {
-  return shadamaCanvas;
 }
 
 function pause() {
@@ -3259,7 +3055,6 @@ var shadama = {
   step,
   testShadama,
   initialize,
-  getCanvas,
   setTarget,
   makeTarget,
   readPixels,
