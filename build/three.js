@@ -19082,11 +19082,32 @@
 
 			var glFormat = utils.convert( renderTarget.texture.format );
 			var glType = utils.convert( renderTarget.texture.type );
+
+	/*
 			state.texImage2D( textureTarget, 0, glFormat, renderTarget.width, renderTarget.height, 0, glFormat, glType, null );
 			_gl.bindFramebuffer( _gl.FRAMEBUFFER, framebuffer );
 			_gl.framebufferTexture2D( _gl.FRAMEBUFFER, attachment, textureTarget, properties.get( renderTarget.texture ).__webglTexture, 0 );
 			_gl.bindFramebuffer( _gl.FRAMEBUFFER, null );
+	*/
 
+			var glInternalFormat = glFormat;
+
+			if (_isWebGL2 && glFormat == _gl.RGBA && glType == _gl.FLOAT) {
+				glInternalFormat = _gl.RGBA32F;
+			} else if (_isWebGL2 && glFormat == _gl.RGBA && glType == _gl.HALF_FLOAT) {
+				glInternalFormat = _gl.RGBA16F;
+			}
+
+			if (_isWebGL2) {
+				var ary = new Uint16Array(renderTarget.width * renderTarget.height * 4);
+			} else {
+				var ary = null;
+			}
+			state.texImage2D( textureTarget, 0, glInternalFormat, renderTarget.width, renderTarget.height, 0, glFormat, glType, ary );
+			_gl.bindFramebuffer( _gl.FRAMEBUFFER, framebuffer );
+			var t = properties.get( renderTarget.texture );
+			_gl.framebufferTexture2D( _gl.FRAMEBUFFER, attachment, textureTarget, t.__webglTexture, 0 );
+			_gl.bindFramebuffer( _gl.FRAMEBUFFER, null );
 		}
 
 		// Setup storage for internal depth/stencil buffers and bind to correct framebuffer
@@ -20635,6 +20656,8 @@
 
 		var extensions = {};
 
+	 	var isWebGL2 = WebGL2RenderingContext !== undefined && gl.constructor == WebGL2RenderingContext;
+
 		return {
 
 			get: function ( name ) {
@@ -20650,7 +20673,11 @@
 				switch ( name ) {
 
 					case 'WEBGL_depth_texture':
-						extension = gl.getExtension( 'WEBGL_depth_texture' ) || gl.getExtension( 'MOZ_WEBGL_depth_texture' ) || gl.getExtension( 'WEBKIT_WEBGL_depth_texture' );
+				   		if (isWebGL2) {
+						    extension = gl;
+						} else {
+						    extension = gl.getExtension( 'WEBGL_depth_texture' ) || gl.getExtension( 'MOZ_WEBGL_depth_texture' ) || gl.getExtension( 'WEBKIT_WEBGL_depth_texture' );
+						}
 						break;
 
 					case 'EXT_texture_filter_anisotropic':
@@ -20670,8 +20697,17 @@
 						break;
 
 					default:
-						extension = gl.getExtension( name );
-
+				    		if (isWebGL2) {
+						    var builtin = ['ANGLE_instanced_arrays', 'OES_texture_float', 'OES_texture_half_float', 'OES_texture_half_float_linear', 'OES_element_index_uint'];
+						    if (builtin.indexOf(name) >= 0) {
+							extension = gl;
+						    } else {
+							extension = gl.getExtension( name );
+						    }
+						} else {
+						    extension = gl.getExtension( name );
+						}
+				    		break;
 				}
 
 				if ( extension === null ) {
@@ -20888,7 +20924,11 @@
 
 				extension = extensions.get( 'OES_texture_half_float' );
 
-				if ( extension !== null ) return extension.HALF_FLOAT_OES;
+				if ( extension !== null ) {
+					var isWebGL2 = ( typeof WebGL2RenderingContext !== 'undefined' && gl instanceof WebGL2RenderingContext );
+				    
+					return isWebGL2 ? gl.HALF_FLOAT : extension.HALF_FLOAT_OES;
+				}
 
 			}
 
@@ -21009,7 +21049,9 @@
 			_stencil = parameters.stencil !== undefined ? parameters.stencil : true,
 			_antialias = parameters.antialias !== undefined ? parameters.antialias : false,
 			_premultipliedAlpha = parameters.premultipliedAlpha !== undefined ? parameters.premultipliedAlpha : true,
-			_preserveDrawingBuffer = parameters.preserveDrawingBuffer !== undefined ? parameters.preserveDrawingBuffer : false;
+			_preserveDrawingBuffer = parameters.preserveDrawingBuffer !== undefined ? parameters.preserveDrawingBuffer : false,
+	    		_webglversion = parameters.webgl2 !== undefined  ? 'webgl2' : 'webgl';
+
 
 		var lightsArray = [];
 		var shadowsArray = [];
@@ -21158,11 +21200,11 @@
 				preserveDrawingBuffer: _preserveDrawingBuffer
 			};
 
-			_gl = _context || _canvas.getContext( 'webgl', contextAttributes ) || _canvas.getContext( 'experimental-webgl', contextAttributes );
+			_gl = _context || _canvas.getContext( _webglversion, contextAttributes );
 
 			if ( _gl === null ) {
 
-				if ( _canvas.getContext( 'webgl' ) !== null ) {
+				if ( _canvas.getContext( _webglversion ) !== null ) {
 
 					throw 'Error creating WebGL context with your selected attributes.';
 
@@ -23328,7 +23370,7 @@
 
 		};
 
-		this.setRenderTarget = function ( renderTarget ) {
+		this.setRenderTarget = function ( renderTarget, optType ) {
 
 			_currentRenderTarget = renderTarget;
 
@@ -23370,7 +23412,7 @@
 
 			if ( _currentFramebuffer !== framebuffer ) {
 
-				_gl.bindFramebuffer( _gl.FRAMEBUFFER, framebuffer );
+				_gl.bindFramebuffer( optType || _gl.FRAMEBUFFER, framebuffer );
 				_currentFramebuffer = framebuffer;
 
 			}
@@ -36407,6 +36449,7 @@
 			var scope = this;
 
 			var loader = new FileLoader( this.manager );
+			loader.setPath( this.path );
 			loader.load( url, function ( text ) {
 
 				var json;
@@ -36433,6 +36476,13 @@
 		parse: function ( json ) {
 
 			return new Font( json );
+
+		},
+
+		setPath: function ( value ) {
+
+			this.path = value;
+			return this;
 
 		}
 
