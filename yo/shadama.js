@@ -94,6 +94,8 @@ function initPatchVAO() {
         -1.0, -1.0,
     ];
 
+
+
     patchVAO = gl.createVertexArray();
     gl.bindVertexArray(patchVAO);
 
@@ -342,6 +344,9 @@ function textureCopy(obj, src, dst) {
     state.useProgram(prog.program);
     gl.bindVertexArray(prog.vao);
 
+    state.setCullFace(THREE.CullFaceNone);
+    state.setBlending(THREE.NoBlending);
+
     state.activeTexture(gl.TEXTURE0);
     state.bindTexture(gl.TEXTURE_2D, src);
 
@@ -589,6 +594,7 @@ class Patch {
       gl.bindVertexArray(prog.vao);
       
       state.setBlending(THREE.NormalBlending);
+      state.setCullFace(THREE.CullFaceNone);
       
       state.activeTexture(gl.TEXTURE0);
       state.bindTexture(gl.TEXTURE_2D, this.r);
@@ -628,6 +634,9 @@ class Patch {
 
       state.useProgram(prog.program);
       gl.bindVertexArray(prog.vao);
+
+      state.setCullFace(THREE.CullFaceNone);
+      state.setBlending(THREE.NoBlending);
 
       state.activeTexture(gl.TEXTURE0);
       state.bindTexture(gl.TEXTURE_2D, source);
@@ -795,6 +804,24 @@ out vec4 fragColor;
 void main(void) {
     ivec2 fc = ivec2(gl_FragCoord.s, gl_FragCoord.t);
     fragColor = texelFetch(u_value, fc, 0);
+}`,
+  "debugPatch2.vert":
+`#version 300 es
+layout (location = 0) in vec2 a_position;
+
+void main(void) {
+    gl_Position = vec4(a_position, 0.0, 1.0);
+}`,
+
+  "debugPatch2.frag":
+`#version 300 es
+precision highp float;
+
+out vec4 fragColor;
+
+void main(void) {
+    ivec2 fc = ivec2(gl_FragCoord.s, gl_FragCoord.t);
+    fragColor = vec4(gl_FragCoord.s / 2.0, gl_FragCoord.t / 512.0, 0, 1.0);
 }`
 }
 
@@ -833,6 +860,37 @@ function copyProgram() {
     return makePrimitive("copy", ["u_value"], patchVAO);
 }
 
+function debugPatch2Program() {
+    return makePrimitive("debugPatch2", [], patchVAO);
+}
+
+function debugPatch2() {
+      var prog = programs["debugPatch2"];
+
+      if (targetTexture) {
+	  setTargetBuffer(framebufferD, targetTexture);
+      } else {
+	  setTargetBuffer(null, null);
+      }
+      
+      state.useProgram(prog.program);
+      gl.bindVertexArray(prog.vao);
+      state.setCullFace( THREE.CullFaceNone );
+      
+      state.setBlending(THREE.NormalBlending);
+      
+      gl.drawArrays(gl.TRIANGLES, 0, 6);
+      gl.flush();
+      state.setBlending(THREE.NoBlending);
+
+      if (!targetTexture) {
+	  setTargetBuffer(null, null);
+      }
+
+      gl.bindVertexArray(null);
+}
+
+
 function debugDisplay(objName, name) {
     var object = env[objName];
     var forBreed = object.constructor == Breed;
@@ -857,7 +915,7 @@ function debugDisplay(objName, name) {
 
     state.useProgram(prog.program);
     gl.bindVertexArray(prog.vao);
- 
+
     var tex = object[name];
 
     state.activeTexture(gl.TEXTURE0);
@@ -866,6 +924,9 @@ function debugDisplay(objName, name) {
 
     renderer.setClearColor(new THREE.Color(0x000000));
     renderer.clearColor();
+
+    state.setCullFace(THREE.CullFaceNone);
+    state.setBlending(THREE.NoBlending);
 
     gl.drawArrays(gl.TRIANGLES, 0, 6);
     gl.flush();
@@ -1013,6 +1074,9 @@ function programFromTable(table, vert, frag, name) {
 
             state.useProgram(prog);
             gl.bindVertexArray(vao);
+
+	    state.setCullFace(THREE.CullFaceNone);
+	    state.setBlending(THREE.NoBlending);
 
             gl.uniform2f(uniLocations["u_resolution"], FW, FH);
             gl.uniform1f(uniLocations["u_particleLength"], T);
@@ -1236,6 +1300,7 @@ function initialize(threeRenderer) {
     programs["drawBreed"] = drawBreedProgram();
     programs["drawPatch"] = drawPatchProgram();
     programs["debugPatch"] = debugPatchProgram();
+    programs["debugPatch2"] = debugPatch2Program();
     programs["diffusePatch"] = diffusePatchProgram();
     programs["copy"] = copyProgram();
 
@@ -1284,10 +1349,10 @@ breed Filler (x, y)
 patch Field (r, g, b, a)
 
 def clear(field) {
-    field.r = 1.0;
+    field.r = 0.0;
     field.g = 0.0;
-    field.b = 1.0;
-    field.a = 1.0;
+    field.b = 0.0;
+    field.a = 0.0;
 }
 
 def fillCircle(cx, cy, r, field) {
@@ -1303,7 +1368,9 @@ def fillCircle(cx, cy, r, field) {
 }
 
 static setup() {
-  Filler.fillSpace("x", "y", width, height);
+  Filler.fillSpace("x", "y", 512, 512);
+  Filler.fillRandom("x", 0, 512);
+  Filler.fillRandom("y", 0, 512);
   Filler.clear(Field);
   Filler.fillCircle(75, 75, 20, Field);
   Filler.fillCircle(300, 95, 25, Field);
