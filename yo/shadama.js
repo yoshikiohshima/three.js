@@ -85,10 +85,6 @@ function initBreedVAO() {
 }
 
 function initPatchVAO() {
-    patchVAO = gl.createVertexArray();
-    gl.bindVertexArray(patchVAO);
-
-    var positionBuffer = gl.createBuffer();
     var rect = [
         -1.0,  1.0,
          1.0,  1.0,
@@ -98,6 +94,10 @@ function initPatchVAO() {
         -1.0, -1.0,
     ];
 
+    patchVAO = gl.createVertexArray();
+    gl.bindVertexArray(patchVAO);
+
+    var positionBuffer = gl.createBuffer();
     var attrLocations = new Array(1);
     attrLocations[0] = 0; //gl.getAttribLocation(prog, 'a_position'); ; Now a_position has layout location spec
 
@@ -301,6 +301,8 @@ function setBufferAttribute(buffers, data, attrL, attrS) {
 }
 
 function Display() {
+  this.clearColor = new THREE.Color(0xFFFFFFFF);
+  this.otherColor = new THREE.Color(0x00000000);
 }
 
 Display.prototype.clear = function() {
@@ -310,7 +312,10 @@ Display.prototype.clear = function() {
 	setTargetBuffer(null, null);
     }
 
+    this.otherColor.copy(renderer.getClearColor());
+    renderer.setClearColor(this.clearColor);
     renderer.clearColor();
+    renderer.setClearColor(this.otherColor);
 
     if (!targetTexture) {
 	setTargetBuffer(null, null);
@@ -1003,7 +1008,7 @@ function programFromTable(table, vert, frag, name) {
             if (forBreed) {
                 setTargetBuffers(framebufferT, targets);
             } else {
-                setTargetBuffers(framebufferF, targets);
+                setTargetBuffers(framebufferR, targets);
             }
 
             state.useProgram(prog);
@@ -1274,26 +1279,15 @@ function mytest() {
 
 function testCode() {
     return `
-program "Bounce"
-
-breed Turtle (x, y, dx, dy, r, g, b, a)
+program "Two Circles"
 breed Filler (x, y)
-patch Field (nx, ny, r, g, b, a)
-
-def setColor() {
-  this.r = this.x / 512.0;
-  this.g = this.y / 512.0;
-  this.b = 0.0;
-  this.a = 1.0;
-}
+patch Field (r, g, b, a)
 
 def clear(field) {
-  field.r = 0.0;
-  field.g = 0.0;
-  field.b = 0.0;
-  field.a = 0.0;
-  field.nx = 0.0;
-  field.ny = 0.0;
+    field.r = 1.0;
+    field.g = 0.0;
+    field.b = 1.0;
+    field.a = 1.0;
 }
 
 def fillCircle(cx, cy, r, field) {
@@ -1305,77 +1299,17 @@ def fillCircle(cx, cy, r, field) {
     field.g = 0.2;
     field.b = 0.8;
     field.a = 1.0;
-    field.nx = dx / r;
-    field.ny = dy / r;
   }
-}
-
-def zeroDir() {
-  this.dx = 0.0;
-  this.dy = 0.0;
-}
- 
-def bounce(field) {
-  var nx = field.nx;
-  var ny = field.ny;
-  var dx = this.dx;
-  var dy = this.dy - 0.01;
-  var dot = dx * nx + dy * ny;
-  var rx = dx;
-  var ry = dy;
-  var origV = sqrt(dx * dx + dy * dy);
-
-  if (dot < 0.0) {
-    rx = dx - 2.0 * dot * nx;
-    ry = dy - 2.0 * dot * ny;
-    var norm = sqrt(rx * rx + ry * ry);
-    rx = rx / (norm / origV);
-    ry = ry / (norm / origV);
-  }
-
-  var newX = this.x + dx;
-  var newY = this.y + dy;
-
-  if (newX < 0.0) {
-    newX = -newX;
-    rx = -rx * 0.9;
-  }
-  if (newX > u_resolution.x) {
-    newX = u_resolution.x - (newX - u_resolution.x);
-    rx = -rx * 0.9;
-  }
-  if (newY < 0.0) {
-    newY = mod(newY, u_resolution.y);
-    ry = -0.1;
-  }
-  if (newY > u_resolution.y) {
-    newY = u_resolution.y - (newY - u_resolution.y);
-    ry = -ry;
-  }
-
-  this.x = newX;
-  this.y = newY;
-  this.dx = rx;
-  this.dy = ry;
 }
 
 static setup() {
-  Filler.fillSpace("x", "y", 512, 512);
-  Turtle.setCount(200000);
-  Turtle.fillRandom("x", 0, 512);
-  Turtle.fillRandom("y", 256, 512);
-  Turtle.fillRandomDir("dx", "dy");
-  Turtle.setColor();
-}
-
-static loop(env) {
+  Filler.fillSpace("x", "y", width, height);
   Filler.clear(Field);
   Filler.fillCircle(75, 75, 20, Field);
   Filler.fillCircle(300, 95, 25, Field);
-  Turtle.bounce(Field);
   Field.draw();
-  Turtle.draw();
 }
+
 `;
 }
 
@@ -3017,118 +2951,10 @@ function translate(str, prod, errorCallback) {
     return n.glsl(symTable, null, null);
 }
 
-function testShadama() {
-    return `
-program "Bounce"
-
-breed Turtle (x, y, dx, dy, r, g, b, a)
-breed Filler (x, y)
-patch Field (nx, ny, r, g, b, a)
-
-def setColor() {
-  this.r = this.x / 512.0;
-  this.g = this.y / 512.0;
-  this.b = 0.0;
-  this.a = 1.0;
-}
-
-def clear(field) {
-  field.r = 0.0;
-  field.g = 0.0;
-  field.b = 0.0;
-  field.a = 0.0;
-  field.nx = 0.0;
-  field.ny = 0.0;
-}
-
-def fillCircle(cx, cy, r, field) {
-  var dx = this.x - cx;
-  var dy = this.y - cy;
-  var dr = sqrt(dx * dx + dy * dy);
-  if (dr < r) {
-    field.r = 0.2;
-    field.g = 0.2;
-    field.b = 0.8;
-    field.a = 1.0;
-    field.nx = dx / r;
-    field.ny = dy / r;
-  }
-}
-
-def zeroDir() {
-  this.dx = 0.0;
-  this.dy = 0.0;
-}
-
-def bounce(field) {
-  var nx = field.nx;
-  var ny = field.ny;
-  var dx = this.dx;
-  var dy = this.dy - 0.01;
-  var dot = dx * nx + dy * ny;
-  var rx = dx;
-  var ry = dy;
-  var origV = sqrt(dx * dx + dy * dy);
-
-  if (dot < 0.0) {
-    rx = dx - 2.0 * dot * nx;
-    ry = dy - 2.0 * dot * ny;
-    var norm = sqrt(rx * rx + ry * ry);
-    rx = rx / (norm / origV);
-    ry = ry / (norm / origV);
-  }
-
-  var newX = this.x + dx;
-  var newY = this.y + dy;
-
-  if (newX < 0.0) {
-    newX = -newX;
-    rx = -rx * 0.9;
-  }
-  if (newX > u_resolution.x) {
-    newX = u_resolution.x - (newX - u_resolution.x);
-    rx = -rx * 0.9;
-  }
-  if (newY < 0.0) {
-    newY = mod(newY, u_resolution.y);
-    ry = -0.1;
-  }
-  if (newY > u_resolution.y) {
-    newY = u_resolution.y - (newY - u_resolution.y);
-    ry = -ry;
-  }
-
-  this.x = newX;
-  this.y = newY;
-  this.dx = rx;
-  this.dy = ry;
-}
-
-static setup() {
-  Filler.fillSpace("x", "y", 512, 512);
-  Turtle.setCount(300000);
-  Turtle.fillRandom("x", 0, 512);
-  Turtle.fillRandom("y", 256, 512);
-  Turtle.fillRandomDir("dx", "dy");
-  Turtle.setColor();
-}
-
-static loop(env) {
-  Filler.clear(Field);
-  Filler.fillCircle(75, 75, 20, Field);
-  Filler.fillCircle(300, 95, 25, Field);
-  Turtle.bounce(Field);
-  Field.draw();
-  Turtle.draw();
-}
-`;
-};
-
 var shadama = {
   loadShadama,
   runner,
   step,
-  testShadama,
   initialize,
   setTarget,
   makeTarget,
