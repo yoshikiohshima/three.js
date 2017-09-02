@@ -223,6 +223,10 @@ function createTexture(data, type, width, height) {
     var tex = gl.createTexture();
     state.bindTexture(gl.TEXTURE_2D, tex);
 
+    gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
+    gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, false);
+    gl.pixelStorei(gl.UNPACK_COLORSPACE_CONVERSION_WEBGL, false);
+    
     if (type == gl.UNSIGNED_BYTE) {
         gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, width, height, 0, gl.RGBA, type, data);
     } else if (type == gl.R32F) {
@@ -372,11 +376,7 @@ var updateOwnVariable = function(obj, name, optData) {
         var height = FH;
     }
 
-    if (!optData) {
-        ary = new Float32Array(width * height);
-    } else {
-        ary = optData;
-    }
+    var ary = optData || new Float32Array(width * height);
 
     if (obj[name]) {
         gl.deleteTexture(obj[name]);
@@ -461,7 +461,7 @@ class Breed {
   }
 
   fillSpace(xName, yName, xDim, yDim) {
-    this.count = xDim * yDim;
+    this.setCount(xDim * yDim);
     var x = new Float32Array(T * T);
     var y = new Float32Array(T * T);
 
@@ -1344,15 +1344,26 @@ function mytest() {
 
 function testCode() {
     return `
-program "Two Circles"
+program "Bounce"
+
+breed Turtle (x, y, dx, dy, r, g, b, a)
 breed Filler (x, y)
-patch Field (r, g, b, a)
+patch Field (nx, ny, r, g, b, a)
+
+def setColor() {
+  this.r = this.x / 512.0;
+  this.g = this.y / 512.0;
+  this.b = 0.0;
+  this.a = 1.0;
+}
 
 def clear(field) {
-    field.r = 0.0;
-    field.g = 0.0;
-    field.b = 0.0;
-    field.a = 0.0;
+  field.r = 0.0;
+  field.g = 0.0;
+  field.b = 0.0;
+  field.a = 0.0;
+  field.nx = 0.0;
+  field.ny = 0.0;
 }
 
 def fillCircle(cx, cy, r, field) {
@@ -1364,17 +1375,77 @@ def fillCircle(cx, cy, r, field) {
     field.g = 0.2;
     field.b = 0.8;
     field.a = 1.0;
+    field.nx = dx / r;
+    field.ny = dy / r;
   }
+}
+
+def zeroDir() {
+  this.dx = 0.0;
+  this.dy = 0.0;
+}
+ 
+def bounce(field) {
+  var nx = field.nx;
+  var ny = field.ny;
+  var dx = this.dx;
+  var dy = this.dy - 0.01;
+  var dot = dx * nx + dy * ny;
+  var rx = dx;
+  var ry = dy;
+  var origV = sqrt(dx * dx + dy * dy);
+
+  if (dot < 0.0) {
+    rx = dx - 2.0 * dot * nx;
+    ry = dy - 2.0 * dot * ny;
+    var norm = sqrt(rx * rx + ry * ry);
+    rx = rx / (norm / origV);
+    ry = ry / (norm / origV);
+  }
+
+  var newX = this.x + dx;
+  var newY = this.y + dy;
+
+  if (newX < 0.0) {
+    newX = -newX;
+    rx = -rx * 0.9;
+  }
+  if (newX > u_resolution.x) {
+    newX = u_resolution.x - (newX - u_resolution.x);
+    rx = -rx * 0.9;
+  }
+  if (newY < 0.0) {
+    newY = mod(newY, u_resolution.y);
+    ry = -0.1;
+  }
+  if (newY > u_resolution.y) {
+    newY = u_resolution.y - (newY - u_resolution.y);
+    ry = -ry;
+  }
+
+  this.x = newX;
+  this.y = newY;
+  this.dx = rx;
+  this.dy = ry;
 }
 
 static setup() {
   Filler.fillSpace("x", "y", 512, 512);
-  Filler.fillRandom("x", 0, 512);
-  Filler.fillRandom("y", 0, 512);
+  Turtle.setCount(60000);
+  Turtle.fillRandom("x", 0, 512);
+  Turtle.fillRandom("y", 256, 512);
+  Turtle.fillRandomDir("dx", "dy");
+  Turtle.setColor();
+}
+
+static loop(env) {
   Filler.clear(Field);
   Filler.fillCircle(75, 75, 20, Field);
   Filler.fillCircle(300, 95, 25, Field);
+  Turtle.bounce(Field);
+  Display.clear();
   Field.draw();
+  Turtle.draw();
 }
 
 `;
