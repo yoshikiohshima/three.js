@@ -48,7 +48,7 @@ function WebGLExtensions( gl ) {
 
 				default:
 			    		if (isWebGL2) {
-					    var builtin = ['ANGLE_instanced_arrays', 'OES_texture_float', 'OES_texture_half_float', 'OES_texture_half_float_linear', 'OES_element_index_uint'];
+					    var builtin = ['ANGLE_instanced_arrays', 'OES_texture_float', 'OES_texture_half_float', 'OES_texture_half_float_linear', 'OES_element_index_uint', 'OES_standard_derivatives'];
 					    if (builtin.indexOf(name) >= 0) {
 						extension = gl;
 					    } else {

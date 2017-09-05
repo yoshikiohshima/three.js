@@ -1,7 +1,11 @@
 uniform float scale;
 attribute float lineDistance;
 
+#if defined(NEEDSGLSL300)
+out float vLineDistance;
+#else
 varying float vLineDistance;
+#endif
 
 #include <common>
 #include <color_pars_vertex>

@@ -9,7 +9,10 @@
 		float fogFactor = smoothstep( fogNear, fogFar, fogDepth );
 
 	#endif
-
+#if defined(NEEDSGLSL300)
+	glFragColor.rgb = mix( glFragColor.rgb, fogColor, fogFactor );
+#else
 	gl_FragColor.rgb = mix( gl_FragColor.rgb, fogColor, fogFactor );
+#endif
 
 #endif
