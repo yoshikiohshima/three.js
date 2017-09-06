@@ -7636,7 +7636,7 @@ function Material() {
 	this.userData = {};
 
 	this.needsUpdate = true;
-
+	this.needsGLSL300 = false;
 }
 
 Object.assign( Material.prototype, EventDispatcher.prototype, {
@@ -17711,6 +17711,7 @@ function unrollLoops( string ) {
 function WebGLProgram( renderer, extensions, code, material, shader, parameters ) {
 	var gl = renderer.context;
  	var isWebGL2 = gl && WebGL2RenderingContext !== undefined && gl.constructor == WebGL2RenderingContext;
+        this.needsGLSL300 = isWebGL2 & material.needsGLSL300;
 
 	this.generateExtensions = function( extensions, parameters, rendererExtensions ) {
 		extensions = extensions || {};

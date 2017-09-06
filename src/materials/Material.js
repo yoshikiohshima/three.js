@@ -64,7 +64,7 @@ function Material() {
 	this.userData = {};
 
 	this.needsUpdate = true;
-
+	this.needsGLSL300 = false;
 }
 
 Object.assign( Material.prototype, EventDispatcher.prototype, {
