@@ -574,6 +574,22 @@ class Breed {
   }
 }
 
+THREE.ShadamaGeometry = function (aBreed) {
+    // This class work with aBreed.  It can make some assumption on
+    // the fields of aBreed.  When things are rendered as points,
+    // they'd still use the similar logic where the values in textures
+    // are interpreted as turtles properties.  There has to be a
+    // shader code that has to do the intepretation.
+
+    // It'd still have to be coordinated with Three.js.  Setting
+    // textures would go with the WebGLState in the state variable,
+
+    // I am not sure it should use the same BufferRenderer?  But if things are rendered in the 
+
+    
+
+}
+
 
 class Patch {
 
@@ -654,6 +670,8 @@ class Patch {
 
   };
 }
+
+
 
 
 var shaders = {
