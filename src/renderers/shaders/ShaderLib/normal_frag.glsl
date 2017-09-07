@@ -15,7 +15,7 @@ uniform float opacity;
 #ifndef FLAT_SHADED
 
 #if defined(NEEDSGLSL300)
-    	in vec3 vNormal;
+	in vec3 vNormal;
 #else
 	varying vec3 vNormal;
 #endif

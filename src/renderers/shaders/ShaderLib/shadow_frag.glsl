@@ -8,6 +8,7 @@ out vec4 glFragColor;
 
 #include <common>
 #include <packing>
+#include <fog_pars_fragment>
 #include <bsdfs>
 #include <lights_pars>
 #include <shadowmap_pars_fragment>
@@ -20,4 +21,7 @@ void main() {
 #else
 	gl_FragColor = vec4( color, opacity * ( 1.0 - getShadowMask() ) );
 #endif
+
+	#include <fog_fragment>
+
 }

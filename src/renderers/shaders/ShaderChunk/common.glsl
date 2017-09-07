@@ -74,7 +74,6 @@ vec3 linePlaneIntersect( in vec3 pointOnLine, in vec3 lineDirection, in vec3 poi
 }
 
 #if !defined(NEEDSGLSL300)
-
 mat3 transpose( const in mat3 v ) {
 
 	mat3 tmp;
@@ -85,8 +84,16 @@ mat3 transpose( const in mat3 v ) {
 	return tmp;
 
 }
-
 #endif
+
+// https://en.wikipedia.org/wiki/Relative_luminance
+float linearToRelativeLuminance( const in vec3 color ) {
+
+	vec3 weights = vec3( 0.2126, 0.7152, 0.0722 );
+
+	return dot( weights, color.rgb );
+
+}
 
 #if defined(NEEDSGLSL300)
 vec4 texture2D(sampler2D s, vec2 uv) {

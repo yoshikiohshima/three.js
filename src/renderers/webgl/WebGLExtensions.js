@@ -6,7 +6,7 @@ function WebGLExtensions( gl ) {
 
 	var extensions = {};
 
- 	var isWebGL2 = WebGL2RenderingContext !== undefined && gl.constructor == WebGL2RenderingContext;
+	var isWebGL2 = WebGL2RenderingContext !== undefined && gl.constructor == WebGL2RenderingContext;
 
 	return {
 
@@ -23,7 +23,7 @@ function WebGLExtensions( gl ) {
 			switch ( name ) {
 
 				case 'WEBGL_depth_texture':
-			   		if (isWebGL2) {
+					if (isWebGL2) {
 					    extension = gl;
 					} else {
 					    extension = gl.getExtension( 'WEBGL_depth_texture' ) || gl.getExtension( 'MOZ_WEBGL_depth_texture' ) || gl.getExtension( 'WEBKIT_WEBGL_depth_texture' );
@@ -47,17 +47,17 @@ function WebGLExtensions( gl ) {
 					break;
 
 				default:
-			    		if (isWebGL2) {
-					    var builtin = ['ANGLE_instanced_arrays', 'OES_texture_float', 'OES_texture_half_float', 'OES_texture_half_float_linear', 'OES_element_index_uint', 'OES_standard_derivatives'];
-					    if (builtin.indexOf(name) >= 0) {
-						extension = gl;
-					    } else {
-						extension = gl.getExtension( name );
-					    }
+					if (isWebGL2) {
+						var builtin = ['ANGLE_instanced_arrays', 'OES_texture_float', 'OES_texture_half_float', 'OES_texture_half_float_linear', 'OES_element_index_uint', 'OES_standard_derivatives'];
+						if (builtin.indexOf(name) >= 0) {
+							extension = gl;
+						} else {
+							extension = gl.getExtension( name );
+						}
 					} else {
 					    extension = gl.getExtension( name );
 					}
-			    		break;
+				break;
 			}
 
 			if ( extension === null ) {

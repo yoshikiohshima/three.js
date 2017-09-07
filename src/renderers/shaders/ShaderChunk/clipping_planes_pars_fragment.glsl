@@ -3,7 +3,7 @@
 	#if ! defined( PHYSICAL ) && ! defined( PHONG )
 	#if NEEDSGLSL300
 		in vec3 vViewPosition;
-        #else 
+        #else
 		varying vec3 vViewPosition;
         #endif
 	#endif

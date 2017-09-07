@@ -38,8 +38,12 @@ THREE.GLTFLoader = ( function () {
 
 				} catch ( e ) {
 
-					// For SyntaxError or TypeError, return a generic failure message.
-					onError( e.constructor === Error ? e : new Error( 'THREE.GLTFLoader: Unable to parse model.' ) );
+					if ( onError !== undefined ) {
+
+						// For SyntaxError or TypeError, return a generic failure message.
+						onError( e.constructor === Error ? e : new Error( 'THREE.GLTFLoader: Unable to parse model.' ) );
+
+					}
 
 				}
 
@@ -1825,14 +1829,23 @@ THREE.GLTFLoader = ( function () {
 
 						}
 
-						if ( geometry.attributes.color !== undefined ) {
+						var useVertexColors = geometry.attributes.color !== undefined;
+						var useFlatShading = geometry.attributes.normal === undefined;
+
+						if ( useVertexColors || useFlatShading ) {
+
+							material = material.clone();
+
+						}
+
+						if ( useVertexColors ) {
 
 							material.vertexColors = THREE.VertexColors;
 							material.needsUpdate = true;
 
 						}
 
-						if ( geometry.attributes.normal === undefined ) {
+						if ( useFlatShading ) {
 
 							material.flatShading = true;
 
@@ -2170,34 +2183,13 @@ THREE.GLTFLoader = ( function () {
 
 					var node = json.nodes[ nodeId ];
 
-					var meshes;
+					var mesh = node.mesh;
 
-					if ( node.mesh !== undefined) {
+					if ( mesh !== undefined) {
 
-						meshes = [ node.mesh ];
+						var group = dependencies.meshes[ mesh ];
 
-					} else if ( node.meshes !== undefined ) {
-
-						console.warn( 'THREE.GLTFLoader: Legacy glTF file detected. Nodes may have no more than one mesh.' );
-
-						meshes = node.meshes;
-
-					}
-
-					if ( meshes !== undefined ) {
-
-						for ( var meshId in meshes ) {
-
-							var mesh = meshes[ meshId ];
-							var group = dependencies.meshes[ mesh ];
-
-							if ( group === undefined ) {
-
-								console.warn( 'THREE.GLTFLoader: Could not find node "' + mesh + '".' );
-								continue;
-
-							}
-
+						if ( group !== undefined ) {
 							// do not clone children as they will be replaced anyway
 							var clonedgroup = group.clone( false );
 
@@ -2298,6 +2290,9 @@ THREE.GLTFLoader = ( function () {
 							}
 
 							_node.add( clonedgroup );
+						} else {
+
+							console.warn( 'THREE.GLTFLoader: Could not find node "' + mesh + '".' );
 
 						}
 

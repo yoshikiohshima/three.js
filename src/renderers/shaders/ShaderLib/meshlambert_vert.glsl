@@ -8,7 +8,11 @@ varying vec3 vLightFront;
 
 #ifdef DOUBLE_SIDED
 
+#if defined(NEEDSGLSL300)
+	out vec3 vLightBack;
+#else
 	varying vec3 vLightBack;
+#endif
 
 #endif
 
