@@ -1,5 +1,8 @@
 #ifdef USE_COLOR
 
-	varying vec3 vColor;
-
+	#if defined(NEEDSGLSL300)
+	out vec3 vColor;
+	#else
+ 	varying vec3 vColor;
+#endif
 #endif

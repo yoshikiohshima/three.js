@@ -54,7 +54,8 @@ function WebGLRenderer( parameters ) {
 		_stencil = parameters.stencil !== undefined ? parameters.stencil : true,
 		_antialias = parameters.antialias !== undefined ? parameters.antialias : false,
 		_premultipliedAlpha = parameters.premultipliedAlpha !== undefined ? parameters.premultipliedAlpha : true,
-		_preserveDrawingBuffer = parameters.preserveDrawingBuffer !== undefined ? parameters.preserveDrawingBuffer : false;
+		_preserveDrawingBuffer = parameters.preserveDrawingBuffer !== undefined ? parameters.preserveDrawingBuffer : false,
+    		_webglversion = parameters.webgl2 !== undefined  ? 'webgl2' : 'webgl';
 
 	var lightsArray = [];
 	var shadowsArray = [];
@@ -203,11 +204,11 @@ function WebGLRenderer( parameters ) {
 			preserveDrawingBuffer: _preserveDrawingBuffer
 		};
 
-		_gl = _context || _canvas.getContext( 'webgl', contextAttributes ) || _canvas.getContext( 'experimental-webgl', contextAttributes );
+		_gl = _context || _canvas.getContext( _webglversion, contextAttributes );
 
 		if ( _gl === null ) {
 
-			if ( _canvas.getContext( 'webgl' ) !== null ) {
+			if ( _canvas.getContext( _webglversion ) !== null ) {
 
 				throw 'Error creating WebGL context with your selected attributes.';
 
@@ -2373,7 +2374,7 @@ function WebGLRenderer( parameters ) {
 
 	};
 
-	this.setRenderTarget = function ( renderTarget ) {
+	this.setRenderTarget = function ( renderTarget, optType ) {
 
 		_currentRenderTarget = renderTarget;
 
@@ -2415,7 +2416,7 @@ function WebGLRenderer( parameters ) {
 
 		if ( _currentFramebuffer !== framebuffer ) {
 
-			_gl.bindFramebuffer( _gl.FRAMEBUFFER, framebuffer );
+			_gl.bindFramebuffer( optType || _gl.FRAMEBUFFER, framebuffer );
 			_currentFramebuffer = framebuffer;
 
 		}

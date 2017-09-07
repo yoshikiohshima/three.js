@@ -3,7 +3,15 @@ uniform float opacity;
 
 #ifndef FLAT_SHADED
 
+#if defined(NEEDSGLSL300)
+	in vec3 vNormal;
+#else
 	varying vec3 vNormal;
+#endif
+
+#if defined(NEEDSGLSL300)
+out vec4 glFragColor;
+#endif
 
 #endif
 
@@ -56,7 +64,11 @@ void main() {
 
 	#include <envmap_fragment>
 
+#if defined(NEEDSGLSL300)
+	glFragColor = vec4( outgoingLight, diffuseColor.a );
+#else
 	gl_FragColor = vec4( outgoingLight, diffuseColor.a );
+#endif
 
 	#include <premultiplied_alpha_fragment>
 	#include <tonemapping_fragment>
