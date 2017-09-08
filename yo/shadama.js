@@ -13,7 +13,7 @@ var gl;
 var renderer;
 var state;
 
-var targetTexture;
+var targetTexture; // THREE.js texture, not WebGL texture
 var readPixelArray;
 var readPixelCallback;
 
@@ -93,8 +93,6 @@ function initPatchVAO() {
          1.0, -1.0,
         -1.0, -1.0,
     ];
-
-
 
     patchVAO = gl.createVertexArray();
     gl.bindVertexArray(patchVAO);
@@ -312,8 +310,9 @@ function Display() {
 }
 
 Display.prototype.clear = function() {
-    if (targetTexture) {
-	setTargetBuffer(framebufferD, targetTexture);
+    var t = webglTexture();
+    if (t) {
+	setTargetBuffer(framebufferD, t);
     } else {
 	setTargetBuffer(null, null);
     }
@@ -323,7 +322,7 @@ Display.prototype.clear = function() {
     renderer.clearColor();
     renderer.setClearColor(this.otherColor);
 
-    if (!targetTexture) {
+    if (!t) {
 	setTargetBuffer(null, null);
     }
 }
@@ -406,11 +405,8 @@ function setTarget(aTexture) {
     targetTexture = aTexture;
 }
 
-function makeTarget() {
-    if (!targetTexture) {
-        targetTexture = createTexture(new Uint8Array(FW*FH*4), gl.UNSIGNED_BYTE, FW, FH);
-    }
-    return targetTexture;
+function webglTexture() {
+    return targetTexture && renderer.properties.get(targetTexture).__webglTexture || null;
 }
 
 function setReadPixelCallback(func) {
@@ -513,9 +509,10 @@ class Breed {
 
   draw() {
       var prog = programs["drawBreed"];
+      var t = webglTexture();
 
-      if (targetTexture) {
-	  setTargetBuffer(framebufferD, targetTexture);
+      if (t) {
+	  setTargetBuffer(framebufferD, t);
       } else {
 	  setTargetBuffer(null, null);
       }
@@ -558,7 +555,7 @@ class Breed {
       gl.flush();
       state.setBlending(THREE.NoBlending);
       
-      if (!targetTexture) {
+      if (!t) {
 	  setTargetBuffer(null, null);
       }
       gl.bindVertexArray(null);
@@ -686,9 +683,10 @@ class Patch {
 
   draw() {
       var prog = programs["drawPatch"];
+      var t = webglTexture();
 
-      if (targetTexture) {
-	  setTargetBuffer(framebufferD, targetTexture);
+      if (t) {
+	  setTargetBuffer(framebufferD, t);
       } else {
 	  setTargetBuffer(null, null);
       }
@@ -720,13 +718,13 @@ class Patch {
       gl.flush();
       state.setBlending(THREE.NoBlending);
 
-      if (!targetTexture) {
+      if (!t) {
 	  setTargetBuffer(null, null);
       }
 
       gl.bindVertexArray(null);
   }
-    
+
   diffuse(name) {
       var prog = programs["diffusePatch"];
 
@@ -754,11 +752,8 @@ class Patch {
       this[name] = target;
 
       gl.bindVertexArray(null);
-
   };
 }
-
-
 
 
 var shaders = {
@@ -1023,31 +1018,31 @@ function renderBreedProgram() {
 }
 
 function debugPatch2() {
-      var prog = programs["debugPatch2"];
+    var prog = programs["debugPatch2"];
+    var t = webglTexture();
 
-      if (targetTexture) {
-	  setTargetBuffer(framebufferD, targetTexture);
-      } else {
-	  setTargetBuffer(null, null);
-      }
+    if (t) {
+	setTargetBuffer(framebufferD, t);
+    } else {
+	setTargetBuffer(null, null);
+    }
       
-      state.useProgram(prog.program);
-      gl.bindVertexArray(prog.vao);
-      state.setCullFace( THREE.CullFaceNone );
-      
-      state.setBlending(THREE.NormalBlending);
-      
-      gl.drawArrays(gl.TRIANGLES, 0, 6);
-      gl.flush();
-      state.setBlending(THREE.NoBlending);
-
-      if (!targetTexture) {
-	  setTargetBuffer(null, null);
-      }
-
-      gl.bindVertexArray(null);
+    state.useProgram(prog.program);
+    gl.bindVertexArray(prog.vao);
+    state.setCullFace( THREE.CullFaceNone );
+    
+    state.setBlending(THREE.NormalBlending);
+    
+    gl.drawArrays(gl.TRIANGLES, 0, 6);
+    gl.flush();
+    state.setBlending(THREE.NoBlending);
+    
+    if (!t) {
+	setTargetBuffer(null, null);
+    }
+    
+    gl.bindVertexArray(null);
 }
-
 
 function debugDisplay(objName, name) {
     var object = env[objName];
@@ -1410,6 +1405,10 @@ function updateEnv() {
                .sort()
                .map((k)=>`${k}: ${print(env[k])}`);
     envList.innerHTML = `<pre>${list.join('\n')}</pre>`;
+}
+
+function addEnv(key, asset) {
+    env[key] = asset;
 }
 
 function runLoop() {
@@ -3185,7 +3184,6 @@ var shadama = {
   step,
   initialize,
   setTarget,
-  makeTarget,
   readPixels,
   setReadPixelCallback,
   pause,
@@ -3195,5 +3193,6 @@ var shadama = {
   pointermove,
   pointerup,
   debugDisplay,
+  addEnv,
   mytest
 };
