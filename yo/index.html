@@ -27,7 +27,7 @@
 		  renderer.setSize( window.innerWidth, window.innerHeight );
 		  document.body.appendChild( renderer.domElement );
 
-		  geometry = new ShadamaGeometry( 512, 512, 512 );
+		  geometry = new THREE.BoxBufferGeometry( 512, 512, 512 );
 		  material = new THREE.MeshBasicMaterial({color: 0x00004000, wireframe: true});
 
 		  var drawingCanvas = document.createElement("canvas");
@@ -58,7 +58,10 @@
 function animate() {
 	requestAnimationFrame( animate );
 	renderer.render( scene, camera );
+	cube.rotateY(0.01);
 	step();
+
+	
 		  
         if (!once) {
 		  once = true;

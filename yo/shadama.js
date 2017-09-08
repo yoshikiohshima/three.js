@@ -609,13 +609,13 @@ class Breed {
 
     // 
 
-var ShadamaGeometry = function (width, height, depth) {
-    THREE.BoxBufferGeometry.call( this, width, height, depth );
-    this.type = 'ShadamaGeometry';
-}
+//var ShadamaGeometry = function (width, height, depth) {
+//    THREE.BoxBufferGeometry.call( this, width, height, depth );
+//    this.type = 'ShadamaGeometry';
+//}
 
-ShadamaGeometry.prototype = Object.create( THREE.BoxBufferGeometry.prototype );
-ShadamaGeometry.prototype.constructor = ShadamaGeometry;
+//ShadamaGeometry.prototype = Object.create( THREE.BoxBufferGeometry.prototype );
+//ShadamaGeometry.prototype.constructor = ShadamaGeometry;
 
 Breed.prototype.render = function(modelViewMatrix, projectionMatrix) {
     var prog = programs["renderBreed"];
