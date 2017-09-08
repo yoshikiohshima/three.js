@@ -574,7 +574,6 @@ class Breed {
   }
 }
 
-THREE.ShadamaGeometry = function (aBreed) {
     // This class work with aBreed.  It can make some assumption on
     // the fields of aBreed.  When things are rendered as points,
     // they'd still use the similar logic where the values in textures
@@ -584,13 +583,101 @@ THREE.ShadamaGeometry = function (aBreed) {
     // It'd still have to be coordinated with Three.js.  Setting
     // textures would go with the WebGLState in the state variable,
 
-    // I am not sure it should use the same BufferRenderer?  But if things are rendered in the 
+    // The result would have to be rendered within an enclosing box;
+    // otherwise it's z-order would be incorrect.
 
-    
+    // We start with THREE.Points object.
+    // Geometry is not buffer geometry but my own.  Its job is:
+    // a_index is same as 2D.
 
+    // layout (location = 0) in vec2 a_index;
+    // uniform sampler2D u_x;
+    // uniform sampler2D u_y;
+    // uniform sampler2D u_z;
+
+    // uniform mat4 modelViewMatrix;
+    // uniform mat4 projectionMatrix;
+
+    // float _x = texelFetch(u_x, ivec2(a_index), 0).r;
+    // float _y = texelFetch(u_y, ivec2(a_index), 0).r;
+    // float _z = texelFetch(u_z, ivec2(a_index), 0).r;
+    // vec4 mvPosition = modelViewMatrix * vec4(_x, _y, _z, 1.0);
+    // gl_PointSize = 1;
+    // gl_Position = projectionMatrix * mvPosition;
+
+    //
+
+    // 
+
+var ShadamaGeometry = function (width, height, depth) {
+    THREE.BoxBufferGeometry.call( this, width, height, depth );
+    this.type = 'ShadamaGeometry';
 }
 
+ShadamaGeometry.prototype = Object.create( THREE.BoxBufferGeometry.prototype );
+ShadamaGeometry.prototype.constructor = ShadamaGeometry;
 
+Breed.prototype.render = function(modelViewMatrix, projectionMatrix) {
+    var prog = programs["renderBreed"];
+    var breed = this;
+    var uniLocations = prog.uniLocations;
+//    setTargetBuffer(null, null);
+
+    state.useProgram(prog.program);
+    gl.bindVertexArray(prog.vao);
+
+    state.setBlending(THREE.NormalBlending);
+//    state.setCullFace( THREE.CullFaceNone );
+      
+    state.activeTexture(gl.TEXTURE0);
+    state.bindTexture(gl.TEXTURE_2D, breed.x);
+    gl.uniform1i(prog.uniLocations["u_x"], 0);
+	
+    state.activeTexture(gl.TEXTURE1);
+    state.bindTexture(gl.TEXTURE_2D, breed.y);
+    gl.uniform1i(prog.uniLocations["u_y"], 1);
+      
+    state.activeTexture(gl.TEXTURE2);
+    state.bindTexture(gl.TEXTURE_2D, breed.z);
+    gl.uniform1i(prog.uniLocations["u_z"], 2);
+    
+    state.activeTexture(gl.TEXTURE3);
+    state.bindTexture(gl.TEXTURE_2D, this.r);
+    gl.uniform1i(prog.uniLocations["u_r"], 3);
+      
+    state.activeTexture(gl.TEXTURE4);
+    state.bindTexture(gl.TEXTURE_2D, this.g);
+    gl.uniform1i(prog.uniLocations["u_g"], 4);
+      
+    state.activeTexture(gl.TEXTURE5);
+    state.bindTexture(gl.TEXTURE_2D, this.b);
+    gl.uniform1i(prog.uniLocations["u_b"], 5);
+
+    state.activeTexture(gl.TEXTURE6);
+    state.bindTexture(gl.TEXTURE_2D, this.a);
+    gl.uniform1i(prog.uniLocations["u_a"], 6);
+      
+    gl.uniformMatrix4fv(uniLocations["modelViewMatrix"], false, modelViewMatrix.elements);
+    gl.uniformMatrix4fv(uniLocations["projectionMatrix"], false, projectionMatrix.elements);
+    gl.uniform3f(prog.uniLocations["u_resolution"], FW, FH, FW); // TODO
+      
+    gl.drawArrays(gl.POINTS, 0, this.count);
+    gl.flush();
+    state.setBlending(THREE.NoBlending);
+      
+    gl.bindVertexArray(null);
+}
+
+Breed.prototype.makeOnAfterRender = function() {
+    var breed = this;
+    return function(renderer, scene, camera, geometry, material, group) {
+	var mesh = this;
+	var projectionMatrix = camera.projectionMatrix;
+	var modelViewMatrix = mesh.modelViewMatrix;
+	breed.render(modelViewMatrix, projectionMatrix);
+    }
+}
+	
 class Patch {
 
   constructor() {
@@ -840,6 +927,55 @@ out vec4 fragColor;
 void main(void) {
     ivec2 fc = ivec2(gl_FragCoord.s, gl_FragCoord.t);
     fragColor = vec4(gl_FragCoord.s / 2.0, gl_FragCoord.t / 512.0, 0, 1.0);
+}`,
+  "renderBreed.vert":
+`#version 300 es
+layout (location = 0) in vec2 a_index;
+
+uniform mat4 modelViewMatrix;
+uniform mat4 projectionMatrix;
+uniform vec3 u_resolution;
+
+uniform sampler2D u_x;
+uniform sampler2D u_y;
+uniform sampler2D u_z;
+
+uniform sampler2D u_r;
+uniform sampler2D u_g;
+uniform sampler2D u_b;
+uniform sampler2D u_a;
+
+out vec4 v_color;
+
+void main(void) {
+    float x = texelFetch(u_x, ivec2(a_index), 0).r;
+    float y = texelFetch(u_y, ivec2(a_index), 0).r;
+    float z = texelFetch(u_z, ivec2(a_index), 0).r;
+    vec3 dPos = vec3(x, y, z);
+    vec3 normPos = dPos / u_resolution;
+    vec3 clipPos = (normPos * 2.0 - 1.0) * (u_resolution.x / 2.0);
+    
+    vec4 mvPosition = modelViewMatrix * vec4(clipPos, 1.0);
+    gl_Position = projectionMatrix * mvPosition;
+
+    float r = texelFetch(u_r, ivec2(a_index), 0).r;
+    float g = texelFetch(u_g, ivec2(a_index), 0).r;
+    float b = texelFetch(u_b, ivec2(a_index), 0).r;
+    float a = texelFetch(u_a, ivec2(a_index), 0).r;
+    v_color = vec4(r, g, b, a);
+    gl_PointSize = 1.0;
+}`,
+
+  "renderBreed.frag":
+`#version 300 es
+precision highp float;
+
+in vec4 v_color;
+
+out vec4 fragColor;
+
+void main(void) {
+  fragColor = v_color;
 }`
 }
 
@@ -880,6 +1016,10 @@ function copyProgram() {
 
 function debugPatch2Program() {
     return makePrimitive("debugPatch2", [], patchVAO);
+}
+
+function renderBreedProgram() {
+    return makePrimitive("renderBreed", ["modelViewMatrix", "projectionMatrix", "u_resolution", "u_x", "u_y", "u_z", "u_r", "u_g", "u_b", "u_a"], breedVAO);
 }
 
 function debugPatch2() {
@@ -1321,6 +1461,7 @@ function initialize(threeRenderer) {
     programs["debugPatch2"] = debugPatch2Program();
     programs["diffusePatch"] = diffusePatchProgram();
     programs["copy"] = copyProgram();
+    programs["renderBreed"] = renderBreedProgram();
 
     debugTexture0 = createTexture(new Float32Array(T*T*4), gl.FLOAT, T, T);
     debugTexture1 = createTexture(new Float32Array(FW*FH*4), gl.FLOAT, FW, FH);
@@ -1358,13 +1499,14 @@ function initialize(threeRenderer) {
 
 function mytest() {
     loadShadama(null, testCode());
+    return env["Turtle"];
 }
 
 function testCode() {
     return `
 program "Bounce"
 
-breed Turtle (x, y, dx, dy, r, g, b, a)
+breed Turtle (x, y, z, dx, dy, r, g, b, a)
 breed Filler (x, y)
 patch Field (nx, ny, r, g, b, a)
 
@@ -1445,13 +1587,14 @@ def bounce(field) {
   this.y = newY;
   this.dx = rx;
   this.dy = ry;
+  this.z = newX;
 }
 
 static setup() {
   Filler.fillSpace("x", "y", 512, 512);
   Turtle.setCount(60000);
   Turtle.fillRandom("x", 0, 512);
-  Turtle.fillRandom("y", 256, 512);
+  Turtle.fillRandom("y", 0, 512);
   Turtle.fillRandomDir("dx", "dy");
   Turtle.setColor();
 }
@@ -1461,9 +1604,9 @@ static loop(env) {
   Filler.fillCircle(75, 75, 20, Field);
   Filler.fillCircle(300, 95, 25, Field);
   Turtle.bounce(Field);
-  Display.clear();
-  Field.draw();
-  Turtle.draw();
+//  Display.clear();
+//  Field.draw();
+//  Turtle.draw();
 }
 
 `;
