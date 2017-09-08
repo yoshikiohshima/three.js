@@ -30,17 +30,6 @@
 		  geometry = new THREE.BoxBufferGeometry( 512, 512, 512 );
 		  material = new THREE.MeshBasicMaterial({color: 0x00004000, wireframe: true});
 
-		  var drawingCanvas = document.createElement("canvas");
-		  drawingCanvas.width = 512;
-		  drawingCanvas.height = 512;
-		  var ctx = drawingCanvas.getContext('2d');
-		  ctx.fillStyle = 'white';
-		  ctx.fillRect(0, 0, 512, 512);
-
-		  //material.map = new THREE.Texture( drawingCanvas );
-
-		  //material.map.needsUpdate = true;
-
 		  cube = new THREE.Mesh( geometry, material );
 		  scene.add( cube );
 

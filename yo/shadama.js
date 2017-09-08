@@ -1026,7 +1026,7 @@ function debugPatch2() {
     } else {
 	setTargetBuffer(null, null);
     }
-      
+
     state.useProgram(prog.program);
     gl.bindVertexArray(prog.vao);
     state.setCullFace( THREE.CullFaceNone );
