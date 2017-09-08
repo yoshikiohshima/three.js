@@ -665,8 +665,8 @@ Breed.prototype.render = function(modelViewMatrix, projectionMatrix) {
     gl.bindVertexArray(null);
 }
 
-Breed.prototype.makeOnAfterRender = function() {
-    var breed = this;
+function makeOnAfterRender() {
+    var breed = env["Turtle"];
     return function(renderer, scene, camera, geometry, material, group) {
 	var mesh = this;
 	var projectionMatrix = camera.projectionMatrix;
@@ -3182,6 +3182,7 @@ var shadama = {
   loadShadama,
   runner,
   step,
+  testCode,
   initialize,
   setTarget,
   readPixels,
@@ -3193,6 +3194,7 @@ var shadama = {
   pointermove,
   pointerup,
   debugDisplay,
+  makeOnAfterRender,
   addEnv,
   mytest
 };
