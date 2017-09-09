@@ -40,8 +40,9 @@
 
 		  function doShadama() {
 		  //shadama.setTarget(renderer.properties.get(material.map).__webglTexture);
-		  var breed = shadama.mytest();
-		  cube.onAfterRender = breed.makeOnAfterRender();
+
+		  shadama.loadShadama(null, shadama.testCode3D());
+		  cube.onAfterRender = shadama.makeOnAfterRender();
                   }
 
 function animate() {

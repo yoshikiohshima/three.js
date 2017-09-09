@@ -456,6 +456,22 @@ class Breed {
     updateOwnVariable(this, yName, y);
   }
 
+  fillRandomDir3(xName, yName, zName) {
+    var x = new Float32Array(T * T);
+    var y = new Float32Array(T * T);
+    var z = new Float32Array(T * T);
+    for (var i = 0; i < x.length; i++) {
+	var angleY = Math.random() * Math.PI * 2.0;
+	var angleX = Math.asin(Math.random() * 2.0 - 1.0);
+	x[i] = Math.sin(angleX);
+	y[i] = Math.cos(angleX) * Math.cos(angleY);
+	z[i] = Math.cos(angleX) * Math.sin(angleY);
+    }
+    updateOwnVariable(this, xName, x);
+    updateOwnVariable(this, yName, y);
+    updateOwnVariable(this, yName, z);
+  }
+
   fillSpace(xName, yName, xDim, yDim) {
     this.setCount(xDim * yDim);
     var x = new Float32Array(T * T);
@@ -561,6 +577,55 @@ class Breed {
       gl.bindVertexArray(null);
   }
 
+  render(modelViewMatrix, projectionMatrix) {
+      var prog = programs["renderBreed"];
+      var breed = this;
+      var uniLocations = prog.uniLocations;
+
+      state.useProgram(prog.program);
+      gl.bindVertexArray(prog.vao);
+
+      state.setBlending(THREE.NormalBlending);
+     
+      state.activeTexture(gl.TEXTURE0);
+      state.bindTexture(gl.TEXTURE_2D, breed.x);
+      gl.uniform1i(prog.uniLocations["u_x"], 0);
+	
+      state.activeTexture(gl.TEXTURE1);
+      state.bindTexture(gl.TEXTURE_2D, breed.y);
+      gl.uniform1i(prog.uniLocations["u_y"], 1);
+      
+      state.activeTexture(gl.TEXTURE2);
+      state.bindTexture(gl.TEXTURE_2D, breed.z);
+      gl.uniform1i(prog.uniLocations["u_z"], 2);
+    
+      state.activeTexture(gl.TEXTURE3);
+      state.bindTexture(gl.TEXTURE_2D, this.r);
+      gl.uniform1i(prog.uniLocations["u_r"], 3);
+
+      state.activeTexture(gl.TEXTURE4);
+      state.bindTexture(gl.TEXTURE_2D, this.g);
+      gl.uniform1i(prog.uniLocations["u_g"], 4);
+      
+      state.activeTexture(gl.TEXTURE5);
+      state.bindTexture(gl.TEXTURE_2D, this.b);
+      gl.uniform1i(prog.uniLocations["u_b"], 5);
+
+      state.activeTexture(gl.TEXTURE6);
+      state.bindTexture(gl.TEXTURE_2D, this.a);
+      gl.uniform1i(prog.uniLocations["u_a"], 6);
+      
+      gl.uniformMatrix4fv(uniLocations["modelViewMatrix"], false, modelViewMatrix.elements);
+      gl.uniformMatrix4fv(uniLocations["projectionMatrix"], false, projectionMatrix.elements);
+      gl.uniform3f(prog.uniLocations["u_resolution"], FW, FH, FW); // TODO
+      
+      gl.drawArrays(gl.POINTS, 0, this.count);
+      gl.flush();
+      state.setBlending(THREE.NoBlending);
+      
+      gl.bindVertexArray(null);
+  }
+
   setCount(n) {
     var oldCount = this.count;
     if (n < 0 || !n) {
@@ -569,100 +634,6 @@ class Breed {
     this.count = n;
     //
   }
-}
-
-    // This class work with aBreed.  It can make some assumption on
-    // the fields of aBreed.  When things are rendered as points,
-    // they'd still use the similar logic where the values in textures
-    // are interpreted as turtles properties.  There has to be a
-    // shader code that has to do the intepretation.
-
-    // It'd still have to be coordinated with Three.js.  Setting
-    // textures would go with the WebGLState in the state variable,
-
-    // The result would have to be rendered within an enclosing box;
-    // otherwise it's z-order would be incorrect.
-
-    // We start with THREE.Points object.
-    // Geometry is not buffer geometry but my own.  Its job is:
-    // a_index is same as 2D.
-
-    // layout (location = 0) in vec2 a_index;
-    // uniform sampler2D u_x;
-    // uniform sampler2D u_y;
-    // uniform sampler2D u_z;
-
-    // uniform mat4 modelViewMatrix;
-    // uniform mat4 projectionMatrix;
-
-    // float _x = texelFetch(u_x, ivec2(a_index), 0).r;
-    // float _y = texelFetch(u_y, ivec2(a_index), 0).r;
-    // float _z = texelFetch(u_z, ivec2(a_index), 0).r;
-    // vec4 mvPosition = modelViewMatrix * vec4(_x, _y, _z, 1.0);
-    // gl_PointSize = 1;
-    // gl_Position = projectionMatrix * mvPosition;
-
-    //
-
-    // 
-
-//var ShadamaGeometry = function (width, height, depth) {
-//    THREE.BoxBufferGeometry.call( this, width, height, depth );
-//    this.type = 'ShadamaGeometry';
-//}
-
-//ShadamaGeometry.prototype = Object.create( THREE.BoxBufferGeometry.prototype );
-//ShadamaGeometry.prototype.constructor = ShadamaGeometry;
-
-Breed.prototype.render = function(modelViewMatrix, projectionMatrix) {
-    var prog = programs["renderBreed"];
-    var breed = this;
-    var uniLocations = prog.uniLocations;
-//    setTargetBuffer(null, null);
-
-    state.useProgram(prog.program);
-    gl.bindVertexArray(prog.vao);
-
-    state.setBlending(THREE.NormalBlending);
-//    state.setCullFace( THREE.CullFaceNone );
-      
-    state.activeTexture(gl.TEXTURE0);
-    state.bindTexture(gl.TEXTURE_2D, breed.x);
-    gl.uniform1i(prog.uniLocations["u_x"], 0);
-	
-    state.activeTexture(gl.TEXTURE1);
-    state.bindTexture(gl.TEXTURE_2D, breed.y);
-    gl.uniform1i(prog.uniLocations["u_y"], 1);
-      
-    state.activeTexture(gl.TEXTURE2);
-    state.bindTexture(gl.TEXTURE_2D, breed.z);
-    gl.uniform1i(prog.uniLocations["u_z"], 2);
-    
-    state.activeTexture(gl.TEXTURE3);
-    state.bindTexture(gl.TEXTURE_2D, this.r);
-    gl.uniform1i(prog.uniLocations["u_r"], 3);
-      
-    state.activeTexture(gl.TEXTURE4);
-    state.bindTexture(gl.TEXTURE_2D, this.g);
-    gl.uniform1i(prog.uniLocations["u_g"], 4);
-      
-    state.activeTexture(gl.TEXTURE5);
-    state.bindTexture(gl.TEXTURE_2D, this.b);
-    gl.uniform1i(prog.uniLocations["u_b"], 5);
-
-    state.activeTexture(gl.TEXTURE6);
-    state.bindTexture(gl.TEXTURE_2D, this.a);
-    gl.uniform1i(prog.uniLocations["u_a"], 6);
-      
-    gl.uniformMatrix4fv(uniLocations["modelViewMatrix"], false, modelViewMatrix.elements);
-    gl.uniformMatrix4fv(uniLocations["projectionMatrix"], false, projectionMatrix.elements);
-    gl.uniform3f(prog.uniLocations["u_resolution"], FW, FH, FW); // TODO
-      
-    gl.drawArrays(gl.POINTS, 0, this.count);
-    gl.flush();
-    state.setBlending(THREE.NoBlending);
-      
-    gl.bindVertexArray(null);
 }
 
 function makeOnAfterRender() {
@@ -1496,55 +1467,6 @@ function initialize(threeRenderer) {
     });
 }
 
-function mytest() {
-    loadShadama(null, testCode());
-    return env["Turtle"];
-}
-
-function testCode() {
-    return `
-program "Bounce"
-
-breed Turtle (x, y, z, r, g, b, a)
-
-def setColor() {
-  this.r = this.x / 512.0;
-  this.g = this.y / 512.0;
-  this.b = this.z / 512.0;
-  this.a = 1.0;
-}
-
-def move() {
-  var y = this.y - 1;
-  if (y < 0.0) {
-     y = 512 + y;
-  }
-  this.y = y;
-}
-
-static setup() {
-  Turtle.setCount(60000);
-  Turtle.fillRandom("x", 0, 512);
-  Turtle.fillRandom("y", 0, 512);
-  Turtle.fillRandom("z", 0, 512);
-  Turtle.setColor();
-}
-
-static loop(env) {
-  Turtle.move();
-//  Display.clear();
-//  Field.draw();
-//  Turtle.draw();
-}
-
-`;
-}
-
-function mytest2() {
-   statics["s2"]();
-}
-
-
 function maybeRunner() {
     if (!animationRequested) {
 	runner();
@@ -1746,6 +1668,10 @@ function initSemantics() {
         obj["fillRandomDir"] = new SymTable([
             ["param", null, "xDir"],
             ["param", null, "yDir"]]);
+        obj["fillRandomDir3"] = new SymTable([
+            ["param", null, "xDir"],
+            ["param", null, "yDir"],
+            ["param", null, "zDir"]]);
         obj["fillSpace"] = new SymTable([
             ["param", null, "xName"],
             ["param", null, "yName"],
@@ -2724,7 +2650,7 @@ uniform sampler2D u_that_y;
 
                 var displayBuiltIns = ["clear", "playSound"];
 
-                var builtIns = ["draw", "setCount", "fillRandom", "fillSpace", "fillRandomDir", "fillImage", "diffuse"];
+                var builtIns = ["draw", "setCount", "fillRandom", "fillSpace", "fillRandomDir", "fillRandomDir3", "fillImage", "diffuse"];
                 var myTable = table[n.sourceString];
 
 
@@ -3178,11 +3104,190 @@ function translate(str, prod, errorCallback) {
     return n.glsl(symTable, null, null);
 }
 
+function testCode3D() {
+    return `
+program "Fall"
+
+breed Turtle (x, y, z, dx, dy, dz, r, g, b, a)
+
+def setColor() {
+  this.r = this.x / 512.0;
+  this.g = this.y / 512.0;
+  this.b = this.z / 512.0;
+  this.a = 1.0;
+}
+
+def move() {
+  var dx = this.dx;
+  var dy = this.dy - 0.01;
+  var dz = this.dz;
+
+  var x = this.x + dx;
+  var y = this.y + dy;
+  var z = this.z + dz;  
+
+  if (x < 0.0) {
+     x = - x;
+     dx = -dx;
+  }
+  
+  if (x >= 512) {
+     x = 512 - (x - 512);
+     dx = - dx;
+  }
+  if (y < 0.0) {
+     y = 512 - y;
+     dy = -0.1;
+  }
+  if (y >= 512) {
+     y = 512 - (y - 512);
+     dy = -dy;
+  }
+  if (z < 0.0) {
+     z = -z;
+     dz = -dz;
+  }
+  if (z >= 512) {
+     z = 512 - (z - 512);
+     dz = -dz;
+  }
+  this.x = x;
+  this.y = y;
+  this.z = z;
+  this.dx = dx;
+  this.dy = dy;
+  this.dz = dz;
+}
+
+static setup() {
+  Turtle.setCount(60000);
+  Turtle.fillRandom("x", 0, 512);
+  Turtle.fillRandom("y", 0, 512);
+  Turtle.fillRandom("z", 0, 512);
+  Turtle.fillRandomDir3("dx", "dy", "dz");
+  Turtle.setColor();
+}
+
+static loop(env) {
+  Turtle.move();
+}
+`;
+}
+
+function testCode2D() {
+    return `
+program "Bounce"
+
+breed Turtle (x, y, dx, dy, r, g, b, a)
+breed Filler (x, y)
+patch Field (nx, ny, r, g, b, a)
+
+def setColor() {
+  this.r = this.x / 512.0;
+  this.g = this.y / 512.0;
+  this.b = 0.0;
+  this.a = 1.0;
+}
+
+def clear(field) {
+  field.r = 0.0;
+  field.g = 0.0;
+  field.b = 0.0;
+  field.a = 0.0;
+  field.nx = 0.0;
+  field.ny = 0.0;
+}
+
+def fillCircle(cx, cy, r, field) {
+  var dx = this.x - cx;
+  var dy = this.y - cy;
+  var dr = sqrt(dx * dx + dy * dy);
+  if (dr < r) {
+    field.r = 0.2;
+    field.g = 0.2;
+    field.b = 0.8;
+    field.a = 1.0;
+    field.nx = dx / r;
+    field.ny = dy / r;
+  }
+}
+
+def zeroDir() {
+  this.dx = 0.0;
+  this.dy = 0.0;
+}
+ 
+def bounce(field) {
+  var nx = field.nx;
+  var ny = field.ny;
+  var dx = this.dx;
+  var dy = this.dy - 0.01;
+  var dot = dx * nx + dy * ny;
+  var rx = dx;
+  var ry = dy;
+  var origV = sqrt(dx * dx + dy * dy);
+
+  if (dot < 0.0) {
+    rx = dx - 2.0 * dot * nx;
+    ry = dy - 2.0 * dot * ny;
+    var norm = sqrt(rx * rx + ry * ry);
+    rx = rx / (norm / origV);
+    ry = ry / (norm / origV);
+  }
+
+  var newX = this.x + dx;
+  var newY = this.y + dy;
+
+  if (newX < 0.0) {
+    newX = -newX;
+    rx = -rx * 0.9;
+  }
+  if (newX > u_resolution.x) {
+    newX = u_resolution.x - (newX - u_resolution.x);
+    rx = -rx * 0.9;
+  }
+  if (newY < 0.0) {
+    newY = mod(newY, u_resolution.y);
+    ry = -0.1;
+  }
+  if (newY > u_resolution.y) {
+    newY = u_resolution.y - (newY - u_resolution.y);
+    ry = -ry;
+  }
+
+  this.x = newX;
+  this.y = newY;
+  this.dx = rx;
+  this.dy = ry;
+}
+
+static setup() {
+  Filler.fillSpace("x", "y", 512, 512);
+  Turtle.setCount(300000);
+  Turtle.fillRandom("x", 0, 512);
+  Turtle.fillRandom("y", 256, 512);
+  Turtle.fillRandomDir("dx", "dy");
+  Turtle.setColor();
+}
+
+static loop(env) {
+  Filler.clear(Field);
+  Filler.fillCircle(75, 75, 20, Field);
+  Filler.fillCircle(300, 95, 25, Field);
+  Turtle.bounce(Field);
+  Display.clear();
+  Field.draw();
+  Turtle.draw();
+}
+`;
+}
+
 var shadama = {
   loadShadama,
   runner,
   step,
-  testCode,
+  testCode2D,
+  testCode3D,
   initialize,
   setTarget,
   readPixels,
@@ -3196,5 +3301,4 @@ var shadama = {
   debugDisplay,
   makeOnAfterRender,
   addEnv,
-  mytest
 };
