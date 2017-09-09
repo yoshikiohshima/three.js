@@ -469,7 +469,7 @@ class Breed {
     }
     updateOwnVariable(this, xName, x);
     updateOwnVariable(this, yName, y);
-    updateOwnVariable(this, yName, z);
+    updateOwnVariable(this, zName, z);
   }
 
   fillSpace(xName, yName, xDim, yDim) {
