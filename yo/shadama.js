@@ -577,7 +577,7 @@ class Breed {
       gl.bindVertexArray(null);
   }
 
-  render(modelViewMatrix, projectionMatrix) {
+  render(mvpMatrix) {
       var prog = programs["renderBreed"];
       var breed = this;
       var uniLocations = prog.uniLocations;
@@ -614,9 +614,8 @@ class Breed {
       state.activeTexture(gl.TEXTURE6);
       state.bindTexture(gl.TEXTURE_2D, this.a);
       gl.uniform1i(prog.uniLocations["u_a"], 6);
-      
-      gl.uniformMatrix4fv(uniLocations["modelViewMatrix"], false, modelViewMatrix.elements);
-      gl.uniformMatrix4fv(uniLocations["projectionMatrix"], false, projectionMatrix.elements);
+
+      gl.uniformMatrix4fv(uniLocations["mvpMatrix"], false, mvpMatrix.elements);
       gl.uniform3f(prog.uniLocations["u_resolution"], FW, FH, FW); // TODO
       
       gl.drawArrays(gl.POINTS, 0, this.count);
@@ -642,7 +641,9 @@ function makeOnAfterRender() {
 	var mesh = this;
 	var projectionMatrix = camera.projectionMatrix;
 	var modelViewMatrix = mesh.modelViewMatrix;
-	breed.render(modelViewMatrix, projectionMatrix);
+	var mvpMatrix = projectionMatrix.clone();
+	mvpMatrix.multiply(modelViewMatrix);
+	breed.render(mvpMatrix);
     }
 }
 	
@@ -898,8 +899,7 @@ void main(void) {
 `#version 300 es
 layout (location = 0) in vec2 a_index;
 
-uniform mat4 modelViewMatrix;
-uniform mat4 projectionMatrix;
+uniform mat4 mvpMatrix;
 uniform vec3 u_resolution;
 
 uniform sampler2D u_x;
@@ -921,8 +921,7 @@ void main(void) {
     vec3 normPos = dPos / u_resolution;
     vec3 clipPos = (normPos * 2.0 - 1.0) * (u_resolution.x / 2.0);
     
-    vec4 mvPosition = modelViewMatrix * vec4(clipPos, 1.0);
-    gl_Position = projectionMatrix * mvPosition;
+    gl_Position = mvpMatrix * vec4(clipPos, 1.0);
 
     float r = texelFetch(u_r, ivec2(a_index), 0).r;
     float g = texelFetch(u_g, ivec2(a_index), 0).r;
@@ -985,7 +984,7 @@ function debugPatch2Program() {
 }
 
 function renderBreedProgram() {
-    return makePrimitive("renderBreed", ["modelViewMatrix", "projectionMatrix", "u_resolution", "u_x", "u_y", "u_z", "u_r", "u_g", "u_b", "u_a"], breedVAO);
+    return makePrimitive("renderBreed", ["mvpMatrix", "u_resolution", "u_x", "u_y", "u_z", "u_r", "u_g", "u_b", "u_a"], breedVAO);
 }
 
 function debugPatch2() {
@@ -3159,11 +3158,18 @@ def move() {
   this.dz = dz;
 }
 
+def initPos() {
+  this.x = 256;
+  this.y = 256;
+  this.z = 256;
+}
+
 static setup() {
-  Turtle.setCount(60000);
-  Turtle.fillRandom("x", 0, 512);
-  Turtle.fillRandom("y", 0, 512);
-  Turtle.fillRandom("z", 0, 512);
+  Turtle.setCount(600000);
+//  Turtle.fillRandom("x", 0, 512);
+//  Turtle.fillRandom("y", 0, 512);
+//  Turtle.fillRandom("z", 0, 512);
+  Turtle.initPos();
   Turtle.fillRandomDir3("dx", "dy", "dz");
   Turtle.setColor();
 }
