@@ -16,6 +16,8 @@ function ShadamaFactory(threeRenderer) {
     var gl;
     var state;
 
+    var targetTexture; // THREE.js texture, not WebGL texture
+
     var debugCanvas1;
     var debugArray;
     var debugArray1;
@@ -757,10 +759,6 @@ function ShadamaFactory(threeRenderer) {
 	this.setupCode = null;
 	this.programName = null;
 
-
-
-	this.targetTexture; // THREE.js texture, not WebGL texture
-
 	this.readPixelArray = null;
 	this.readPixelCallback = null;
 
@@ -856,11 +854,11 @@ function ShadamaFactory(threeRenderer) {
     }
 
     Shadama.prototype.setTarget = function(aTexture) {
-	this.targetTexture = aTexture;
+	targetTexture = aTexture;
     }
 
-    Shadama.prototype.webglTexture = function() {
-	return this.targetTexture && renderer.properties.get(this.targetTexture).__webglTexture || null;
+    webglTexture = function() {
+	return targetTexture && renderer.properties.get(targetTexture).__webglTexture || null;
     }
 
     Shadama.prototype.setReadPixelCallback = function(func) {
@@ -2553,7 +2551,7 @@ uniform sampler2D u_that_y;
 				"cbrt", "ceil", "cos", "cosh", "exp", "expm1", "floor",
 				"log", "log1p", "log10", "log2", "round", "sign", "sin",
 				"sinh", "sqrt", "tan", "tanh", "trunc", // 1 arg
-				"atan2", "log2", "max", "min", "pow" // 2 args
+				"atan2", "max", "min", "pow" // 2 args
                                ];
                     if (math.indexOf(prim) >= 0) {
 			var actuals = as.static_method_helper(table, null, null, false);
@@ -3215,7 +3213,7 @@ static loop(env) {
 	throw "needs a WebGL2 context";
 	return;
     }
-    gl = this.renderer.context;
+    gl = renderer.context;
 
     if (!renderer.state) {
 	throw "a WebGLState has to be passed in";
