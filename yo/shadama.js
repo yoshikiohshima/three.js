@@ -857,12 +857,12 @@ function ShadamaFactory(threeRenderer) {
 	targetTexture = aTexture;
     }
 
-    webglTexture = function() {
+    function webglTexture() {
 	return targetTexture && renderer.properties.get(targetTexture).__webglTexture || null;
     }
 
     Shadama.prototype.setReadPixelCallback = function(func) {
-	readPixelCallback = func;
+	this.readPixelCallback = func;
     }
 
     Shadama.prototype.makeOnAfterRender = function() {
@@ -887,7 +887,7 @@ function ShadamaFactory(threeRenderer) {
 	}
 	gl.readPixels(0, 0, width, height, gl.RGBA, gl.UNSIGNED_BYTE, this.readPixelArray);
 
-	var clamped = new Uint8ClampedArray(readPixelArray);
+	var clamped = new Uint8ClampedArray(this.readPixelArray);
 	var img = new ImageData(clamped, width, height);
 	gl.bindFramebuffer(gl.FRAMEBUFFER, null);
 	return img;
@@ -1042,7 +1042,7 @@ function ShadamaFactory(threeRenderer) {
 	}
 	let list = Object.getOwnPropertyNames(this.env)
             .sort()
-            .map((k)=>`${k}: ${print(env[k])}`);
+            .map((k)=>`${k}: ${print(this.env[k])}`);
 //	envList.innerHTML = `<pre>${list.join('\n')}</pre>`;
     }
 
