@@ -415,7 +415,7 @@ function ShadamaFactory(threeRenderer) {
 	return tex;
     }
 
-    function makeFramebuffer(tex, format, width, height) {
+    function makeFramebuffer(format, width, height) {
 	if (!format) {
             format = gl.UNSIGNED_BYTE;
 	}
@@ -425,6 +425,18 @@ function ShadamaFactory(threeRenderer) {
 	if (!height) {
             height = T;
 	}
+
+	var tex;
+	if (format == gl.FLOAT) {
+	    tex = createTexture(new Float32Array(width * height * 4), format, width, height);
+	}
+	if (format == gl.R32F) {
+	    tex = createTexture(new Float32Array(width * height), format, width, height);
+	}
+	if (format == gl.UNSIGNED_BYTE) {
+	    tex = createTexture(new Uint8Array(width * height * 4), format, width, height);
+	}
+	    
 	var buffer = gl.createFramebuffer();
 
 	gl.bindFramebuffer(gl.FRAMEBUFFER, buffer);
@@ -442,6 +454,8 @@ function ShadamaFactory(threeRenderer) {
 
 	var target = new THREE.WebGLRenderTarget(width, height);
 	renderer.properties.get(target).__webglFramebuffer = buffer;
+
+	gl.deleteTexture(tex);
 	return target;
     }
 
@@ -754,6 +768,7 @@ function ShadamaFactory(threeRenderer) {
 	this.loadTime = 0.0;
 
 	this.editor = null;
+	this.editorType = null;
 	this.parseErrorWidget = null;
 	this.compilation = null;
 	this.setupCode = null;
@@ -768,32 +783,12 @@ function ShadamaFactory(threeRenderer) {
 	debugTexture0 = createTexture(new Float32Array(T*T*4), gl.FLOAT, T, T);
 	debugTexture1 = createTexture(new Float32Array(FW*FH*4), gl.FLOAT, FW, FH);
 
-	var tmp;
-	tmp = createTexture(new Float32Array(T * T), gl.R32F, T, T);
-	framebufferT = makeFramebuffer(tmp, gl.R32F, T, T);
-	gl.deleteTexture(tmp);
-
-	tmp = createTexture(new Float32Array(FW * FH), gl.R32F, FW, FH);
-	framebufferR = makeFramebuffer(tmp, gl.R32F, FW, FH);
-	gl.deleteTexture(tmp);
-
-	tmp = createTexture(new Float32Array(FW*FH*4), gl.FLOAT, FW, FH);
-	framebufferF = makeFramebuffer(tmp, gl.FLOAT, FW, FH);
-	gl.deleteTexture(tmp);
-
-	tmp = createTexture(new Uint8Array(FW*FH*4), gl.UNSIGNED_BYTE, FW, FH);
-	framebufferD = makeFramebuffer(tmp, gl.UNSIGNED_BYTE, FW, FH);
-	gl.deleteTexture(tmp);
-
-	tmp = createTexture(new Float32Array(T*T*4), gl.FLOAT, T, T);
-	framebufferD0 = makeFramebuffer(tmp, gl.FLOAT, T, T);
-	gl.deleteTexture(tmp);
-
-	tmp = createTexture(new Float32Array(FW*FH*4), gl.FLOAT, FW, FH);
-	framebufferD1 = makeFramebuffer(tmp, gl.FLOAT, FW, FH);
-	gl.deleteTexture(tmp);
-
-
+	framebufferT = makeFramebuffer(gl.R32F, T, T);
+	framebufferR = makeFramebuffer(gl.R32F, FW, FH);
+	framebufferF = makeFramebuffer(gl.FLOAT, FW, FH);
+	framebufferD = makeFramebuffer(gl.UNSIGNED_BYTE, FW, FH);
+	framebufferD0 = makeFramebuffer(gl.FLOAT, T, T);
+	framebufferD1 = makeFramebuffer(gl.FLOAT, FW, FH);
     }
 
     Shadama.prototype.evalShadama = function(source) {
@@ -1368,11 +1363,15 @@ function ShadamaFactory(threeRenderer) {
 
     Shadama.prototype.cleanUpEditorState = function() {
 	if (this.editor) {
-            if (this.parseErrorWidget) {
-		this.editor.removeLineWidget(this.parseErrorWidget);
-		this.parseErrorWidget = undefined;
-            }
-            this.editor.getAllMarks().forEach(function(mark) { mark.clear(); });
+	    if (this.editorType == "CodeMirror") {
+		if (this.parseErrorWidget) {
+		    this.editor.removeLineWidget(this.parseErrorWidget);
+		    this.parseErrorWidget = undefined;
+		}
+		this.editor.getAllMarks().forEach(function(mark) { mark.clear(); });
+	    }
+	    if (this.editorType == "Carota") {
+	    }
 	}
     }
 
@@ -1390,24 +1389,28 @@ function ShadamaFactory(threeRenderer) {
 	};
 
 	if (this.editor) {
-            setTimeout(
-		function() {
-                    if (this.editor.getValue() === src && !this.parseErrorWidget) {
-			function repeat(x, n) {
-                            var xs = [];
-                            while (n-- > 0) {
-				xs.push(x);
-                            }
-                            return xs.join('');
+	    if (this.editorType == "CodeMirror") {
+		setTimeout(
+		    function() {
+			if (this.editor.getValue() === src && !this.parseErrorWidget) {
+			    function repeat(x, n) {
+				var xs = [];
+				while (n-- > 0) {
+				    xs.push(x);
+				}
+				return xs.join('');
+			    }
+			    var msg = 'Expected: ' + match.getExpectedText();
+			    var pos = this.editor.doc.posFromIndex(match.getRightmostFailurePosition());
+			    var error = toDOM(['parseerror', repeat(' ', pos.ch) + '^\n' + msg]);
+			    this.parseErrorWidget = this.editor.addLineWidget(pos.line, error);
 			}
-			var msg = 'Expected: ' + match.getExpectedText();
-			var pos = this.editor.doc.posFromIndex(match.getRightmostFailurePosition());
-			var error = toDOM(['parseerror', repeat(' ', pos.ch) + '^\n' + msg]);
-			this.parseErrorWidget = this.editor.addLineWidget(pos.line, error);
-                    }
-		},
-		2500
-            );
+		    },
+		    2500
+		);
+	    }
+	    if (this.editorType == "Carota") {
+	    }
 	}
     }
 
@@ -1422,6 +1425,11 @@ function ShadamaFactory(threeRenderer) {
     }
 
     Shadama.prototype.destroy = function() {
+	//
+    }
+
+    Shadama.prototype.pause = function() {
+	this.steppers = {};
     }
 
     Shadama.prototype.pointermove = function(x, y) {
@@ -3239,23 +3247,6 @@ static loop(env) {
     return new Shadama();
 }
 
-//var shadama = {
-//  loadShadama,
-//  runner,
-//  step,
-//  testCode2D,
-//  testCode3D,
-//  initialize,
-//  setTarget,
-//  readPixels,
-//  setReadPixelCallback,
-//  pause,
-//  destroy,
-//  maybeRunner,
-//  pointerdown,
-//  pointermove,
-//  pointerup,
-//  debugDisplay,
-//  makeOnAfterRender,
-//  addEnv,
-//};
+//export {
+//   ShadamaFactory
+//}
