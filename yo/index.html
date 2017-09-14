@@ -2,7 +2,7 @@
 <html>
 	<head>
 		<meta charset=utf-8>
-		<title>My first three.js app</title>
+		<title>Shadama 3D</title>
 		<style>
 			body { margin: 0; }
 			canvas { width: 100%; height: 100% }
@@ -40,10 +40,9 @@
 		  shadama = ShadamaFactory(renderer);
 
 		  function doShadama() {
-		  //shadama.setTarget(renderer.properties.get(material.map).__webglTexture);
-
-		  shadama.loadShadama(null, shadama.testCode3D());
-		  cube.onAfterRender = shadama.makeOnAfterRender();
+		  	//shadama.setTarget(renderer.properties.get(material.map).__webglTexture);
+			shadama.loadShadama(null, shadama.testCode3D());
+		  	cube.onAfterRender = shadama.makeOnAfterRender();
                   }
 
 function animate() {

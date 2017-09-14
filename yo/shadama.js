@@ -16,6 +16,8 @@ function ShadamaFactory(threeRenderer) {
     var gl;
     var state;
 
+    var renderRequests = [];
+
     var targetTexture; // THREE.js texture, not WebGL texture
 
     var debugCanvas1;
@@ -861,14 +863,20 @@ function ShadamaFactory(threeRenderer) {
     }
 
     Shadama.prototype.makeOnAfterRender = function() {
-	var breed = this.env["Turtle"];
 	return function(renderer, scene, camera, geometry, material, group) {
 	    var mesh = this;
 	    var projectionMatrix = camera.projectionMatrix;
 	    var modelViewMatrix = mesh.modelViewMatrix;
 	    var mvpMatrix = projectionMatrix.clone();
 	    mvpMatrix.multiply(modelViewMatrix);
-	    breed.render(mvpMatrix);
+
+	    for (var i = 0; i < renderRequests.length; i++) {
+		var item = renderRequests[i];
+		if (item.constructor == Breed) {
+		    item.realRender(mvpMatrix);
+		}
+	    }
+	    renderRequests.length = 0;
 	}
     }
 
@@ -987,6 +995,8 @@ function ShadamaFactory(threeRenderer) {
 	this.setupCode = null;
 	this.programName = null;
 
+	renderRequests = [];
+
 	for (var o in this.env) {
             var obj = this.env[o];
             if (typeof obj == "object" && (obj.constructor == Breed || obj.constructor == Patch)) {
@@ -1019,8 +1029,6 @@ function ShadamaFactory(threeRenderer) {
 
 	callback();
     }
-
-
 
     Shadama.prototype.updateEnv = function() {
 	function printNum(obj) {
@@ -1169,7 +1177,7 @@ function ShadamaFactory(threeRenderer) {
 	    updateOwnVariable(this, aName, a);
 	}
 
-	draw() {
+	draw(env) {
 	    var prog = programs["drawBreed"];
 	    var t = webglTexture();
 
@@ -1223,10 +1231,15 @@ function ShadamaFactory(threeRenderer) {
 	    gl.bindVertexArray(null);
 	}
 
-	render(mvpMatrix) {
+	render() {
+	    renderRequests.push(this);
+	}
+
+	realRender(mvpMatrix) {
 	    var prog = programs["renderBreed"];
 	    var breed = this;
 	    var uniLocations = prog.uniLocations;
+	    //var mvpMatrix = env.mvpMatrix;
 
 	    state.useProgram(prog.program);
 	    gl.bindVertexArray(prog.vao);
@@ -1287,7 +1300,7 @@ function ShadamaFactory(threeRenderer) {
 	    this.own = {};
 	}
 
-	draw() {
+	draw(env) {
 	    var prog = programs["drawPatch"];
 	    var t = webglTexture();
 
@@ -1590,6 +1603,7 @@ Shadama {
             obj["setCount"] = new SymTable([
 		["param", null, "num"]]);
             obj["draw"] = new SymTable([]);
+            obj["render"] = new SymTable([]);
             obj["fillRandom"] = new SymTable([
 		["param", null, "name"],
 		["param", null, "min"],
@@ -2579,7 +2593,7 @@ uniform sampler2D u_that_y;
 
                     var displayBuiltIns = ["clear", "playSound"];
 
-                    var builtIns = ["draw", "setCount", "fillRandom", "fillSpace", "fillRandomDir", "fillRandomDir3", "fillImage", "diffuse"];
+                    var builtIns = ["draw", "render", "setCount", "fillRandom", "fillSpace", "fillRandomDir", "fillRandomDir3", "fillImage", "diffuse"];
                     var myTable = table[n.sourceString];
 
                     if (r.sourceString === "Display" && displayBuiltIns.indexOf(method) >= 0) {
@@ -3037,9 +3051,17 @@ highp float random(float seed) {
 program "Fall"
 
 breed Turtle (x, y, z, dx, dy, dz, r, g, b, a)
+breed Rabbit (x, y, z, dx, dy, dz, r, g, b, a)
 
 def setColor() {
   this.r = this.x / 512.0;
+  this.g = this.y / 512.0;
+  this.b = 0.0;
+  this.a = 1.0;
+}
+
+def setColor2() {
+  this.r = 0.0;
   this.g = this.y / 512.0;
   this.b = this.z / 512.0;
   this.a = 1.0;
@@ -3094,10 +3116,20 @@ static setup() {
   Turtle.fillRandom("z", 0, 512);
   Turtle.fillRandomDir3("dx", "dy", "dz");
   Turtle.setColor();
+
+  Rabbit.setCount(600000);
+  Rabbit.fillRandom("x", 0, 512);
+  Rabbit.fillRandom("y", 0, 512);
+  Rabbit.fillRandom("z", 0, 512);
+  Rabbit.fillRandomDir3("dx", "dy", "dz");
+  Rabbit.setColor2();
 }
 
 static loop(env) {
   Turtle.move();
+  Rabbit.move();
+  Turtle.render();
+  Rabbit.render();
 }
 `;
     }
@@ -3198,7 +3230,7 @@ static setup() {
   Turtle.setColor();
 }
 
-static loop(env) {
+static loop() {
   Filler.clear(Field);
   Filler.fillCircle(75, 75, 20, Field);
   Filler.fillCircle(300, 95, 25, Field);
