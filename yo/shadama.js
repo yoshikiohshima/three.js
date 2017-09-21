@@ -34,6 +34,10 @@ function ShadamaFactory(threeRenderer) {
     var framebufferF;
     var framebufferR;
     var framebufferD;  // for three js u8rgba texture
+    
+    var editor = null;
+    var editorType = null;
+    var parseErrorWidget = null;
 
     var shaders = {
 	"copy.vert":
@@ -750,18 +754,6 @@ function ShadamaFactory(threeRenderer) {
 	})();
     }
 
-    function emptyImageData(width, height) {
-	var ary = new Uint8ClampedArray(width * height * 4);
-	for (var i = 0; i < width * height; i++) {
-            ary[i * 4 + 0] = i;
-            ary[i * 4 + 1] = 0;
-            ary[i * 4 + 2] = 0;
-            ary[i * 4 + 3] = 255;
-	}
-	return new ImageData(ary, 256, 256);
-    }
-
-
     function Shadama() {
 	this.env = {};	// {name: value}
 	this.scripts = {};    // {name: [function, inOutParam]}
@@ -769,9 +761,6 @@ function ShadamaFactory(threeRenderer) {
 	this.steppers = {};  // {name: name}
 	this.loadTime = 0.0;
 
-	this.editor = null;
-	this.editorType = null;
-	this.parseErrorWidget = null;
 	this.compilation = null;
 	this.setupCode = null;
 	this.programName = null;
@@ -1059,6 +1048,11 @@ function ShadamaFactory(threeRenderer) {
 	}
     }
 
+    Shadama.prototype.setEditor = function(anEditor, type) {
+	editor = anEditor;
+	editorType = type;
+    }
+
     function Display() {
 	this.clearColor = new THREE.Color(0xFFFFFFFF);
 	this.otherColor = new THREE.Color(0x00000000);
@@ -1080,6 +1074,17 @@ function ShadamaFactory(threeRenderer) {
 	if (!t) {
 	    setTargetBuffer(null, null);
 	}
+    }
+
+    Shadama.prototype.emptyImageData = function(width, height) {
+	var ary = new Uint8ClampedArray(width * height * 4);
+	for (var i = 0; i < width * height; i++) {
+            ary[i * 4 + 0] = i;
+            ary[i * 4 + 1] = 0;
+            ary[i * 4 + 2] = 0;
+            ary[i * 4 + 3] = 255;
+	}
+	return new ImageData(ary, 256, 256);
     }
 
     class Breed {
@@ -1177,7 +1182,7 @@ function ShadamaFactory(threeRenderer) {
 	    updateOwnVariable(this, aName, a);
 	}
 
-	draw(env) {
+	draw() {
 	    var prog = programs["drawBreed"];
 	    var t = webglTexture();
 
@@ -1239,7 +1244,6 @@ function ShadamaFactory(threeRenderer) {
 	    var prog = programs["renderBreed"];
 	    var breed = this;
 	    var uniLocations = prog.uniLocations;
-	    //var mvpMatrix = env.mvpMatrix;
 
 	    state.useProgram(prog.program);
 	    gl.bindVertexArray(prog.vao);
@@ -1300,7 +1304,7 @@ function ShadamaFactory(threeRenderer) {
 	    this.own = {};
 	}
 
-	draw(env) {
+	draw() {
 	    var prog = programs["drawPatch"];
 	    var t = webglTexture();
 
@@ -1375,18 +1379,23 @@ function ShadamaFactory(threeRenderer) {
     }
 
     Shadama.prototype.cleanUpEditorState = function() {
-	if (this.editor) {
-	    if (this.editorType == "CodeMirror") {
-		if (this.parseErrorWidget) {
-		    this.editor.removeLineWidget(this.parseErrorWidget);
-		    this.parseErrorWidget = undefined;
+	if (editor) {
+	    if (editorType == "CodeMirror") {
+		if (parseErrorWidget) {
+		    editor.removeLineWidget(parseErrorWidget);
+		    parseErrorWidget = undefined;
 		}
-		this.editor.getAllMarks().forEach(function(mark) { mark.clear(); });
+		editor.getAllMarks().forEach(function(mark) { mark.clear(); });
 	    }
-	    if (this.editorType == "Carota") {
+	    if (editorType == "Carota") {
+		if (parseErrorWidget) {
+		    parseErrorWidget.visible(false);
+		}
 	    }
 	}
     }
+
+    var showError;
 
     function syntaxError(match, src) {
 	function toDOM(x) {
@@ -1401,11 +1410,11 @@ function ShadamaFactory(threeRenderer) {
             }
 	};
 
-	if (this.editor) {
-	    if (this.editorType == "CodeMirror") {
+	if (editor) {
+	    if (editorType == "CodeMirror") {
 		setTimeout(
 		    function() {
-			if (this.editor.getValue() === src && !this.parseErrorWidget) {
+			if (editor.getValue() === src && !parseErrorWidget) {
 			    function repeat(x, n) {
 				var xs = [];
 				while (n-- > 0) {
@@ -1414,17 +1423,65 @@ function ShadamaFactory(threeRenderer) {
 				return xs.join('');
 			    }
 			    var msg = 'Expected: ' + match.getExpectedText();
-			    var pos = this.editor.doc.posFromIndex(match.getRightmostFailurePosition());
+			    var pos = editor.doc.posFromIndex(match.getRightmostFailurePosition());
 			    var error = toDOM(['parseerror', repeat(' ', pos.ch) + '^\n' + msg]);
-			    this.parseErrorWidget = this.editor.addLineWidget(pos.line, error);
+			    parseErrorWidget = editor.addLineWidget(pos.line, error);
 			}
 		    },
 		    2500
 		);
 	    }
-	    if (this.editorType == "Carota") {
+	    if (editorType == "Carota") {
+	     	var scale = 8; // need to compute it
+		var bounds2D = editor.editor.byOrdinal(match.getRightmostFailurePosition()).bounds();
+	    	var x = (bounds2D.r - (editor.width / 2)) / scale;
+	    	var y = (editor.height - bounds2D.b - editor.height / 2) / scale;
+	    	var vec = new THREE.Vector3(x, y, 0);
+	    	var orig = vec.clone();
+	    	editor.object3D.parent.localToWorld(vec);
+
+		var msg = 'Expected: ' + match.getExpectedText();
+
+	    	if (!parseErrorWidget) {
+	    	    parseErrorWidget =
+			new TStickyNote(Globals.tAvatar,
+	    		    function(tObj){
+	    			//tObj.object3D.position.set(5, -2, -2);
+	    			//tObj.setLaser();
+	    			showError(tObj, msg, vec);}, 512, 256);
+		    Globals.sticky = parseErrorWidget;
+		    parseErrorWidget.object3D.scale.set(0.05, 0.05, 0.05);
+	    	} else {
+	    	    showError(parseErrorWidget, msg, vec);
+	    	}
 	    }
 	}
+    }
+
+    Shadama.prototype.setShowError = function(func) {
+	showError = func;
+    }
+    
+    showError = function(obj, m, v) {
+	obj.visible(true);
+	
+	Globals.temp1 = obj;
+	Globals.mylaser = obj.laserBeam;
+	Globals.tAvatar.addChild(obj);
+	obj.object3D.position.set(30, 10, -40);
+	obj.object3D.quaternion.set(0,0,0,1);
+	
+	var canvas = obj.object3D.material.map.image;
+	var ctx = canvas.getContext("2d");
+	ctx.fillStyle = "white";
+	ctx.fillRect(0, 0, canvas.width, canvas.height);
+	ctx.font = "60px Arial";
+	ctx.fillStyle = "blue";
+	ctx.fillText(m, 5, 20);
+	obj.object3D.material.map.needsUpdate = true;
+	obj.release();
+	
+	obj.track(v);
     }
 
     Shadama.prototype.step = function() {
@@ -1438,6 +1495,11 @@ function ShadamaFactory(threeRenderer) {
     }
 
     Shadama.prototype.destroy = function() {
+	if (editorType == "Carota") {
+	    if (parseErrorWidget) {
+		parseErrorWidget.removeSelf();
+	    }
+	}
 	//
     }
 
@@ -3048,88 +3110,108 @@ highp float random(float seed) {
 
     Shadama.prototype.testCode3D = function() {
 	return `
-program "Fall"
+
+program "Tornado"
 
 breed Turtle (x, y, z, dx, dy, dz, r, g, b, a)
-breed Rabbit (x, y, z, dx, dy, dz, r, g, b, a)
 
 def setColor() {
-  this.r = this.x / 512.0;
-  this.g = this.y / 512.0;
-  this.b = 0.0;
+  this.r = this.x / 512;
+  this.g = this.y / 512;
+  this.b = this.z / 512;
   this.a = 1.0;
 }
 
-def setColor2() {
-  this.r = 0.0;
-  this.g = this.y / 512.0;
-  this.b = this.z / 512.0;
-  this.a = 1.0;
+def initD() {
+  var offX = this.x - 256;
+  var offZ = this.z - 256;
+  var theta = atan(offX, offZ);
+  var dist2 = sqrt(offX * offX + offZ * offZ);
+  this.dx = -cos(theta) * dist2 / 256;
+  this.dy = 0;
+  this.dz = sin(theta) * dist2 / 256;
 }
 
-def move() {
+def ring() {
+  var x = this.x;
+  var r = random(x);
+  this.x = cos(x) * 200 * r + 256;
+  this.z = sin(x) * 200 * r + 256;
+}
+
+def move(mousex) {
+  var x = this.x;
+  var y = this.y;
+  var z = this.z;
+
   var dx = this.dx;
-  var dy = this.dy - 0.01;
+  var dy = this.dy;
   var dz = this.dz;
 
-  var x = this.x + dx;
-  var y = this.y + dy;
-  var z = this.z + dz;  
+  var offX = x - 256;
+  var offY = y - 256;
+  var offZ = z - 256;
 
-  if (x < 0.0) {
-     x = - x;
-     dx = -dx;
+  var dist2 = sqrt(offX * offX + offZ * offZ);
+  var v = sqrt(dx * dx + dy * dy + dz * dz);
+
+  var gfactor = step(0.1, 1/y);
+  var gx = gfactor * (-(offX/dist2) * 0.1);
+  var gy = gfactor * (smoothstep(0.0001, 1, 1/dist2) * 4);
+  var gz = gfactor * (-(offZ/dist2) * 0.1);
+
+  var theta = atan(offX, offZ);
+  theta = theta - 0.02;
+  var px = -cos(theta);
+  var py = 0.0;
+  var pz = sin(theta);
+
+  dx = (dx + px) / 2 + gx;
+  dy = py + gy;
+  dz = (dz + pz) / 2 + gz;
+
+  var newV = sqrt(dx * dx + dy * dy + dz * dz);
+
+  if (y < 10) {
+    dx = dx * (v / newV);
+    dz = dz * (v / newV);
+  } else {
+    dy = dy + 0.5;
+    dx = dx + (random(dy*101+dz*0.3) - 0.5) + ((mousex-256) / 512);
+    dz = dz + (random(dx*101+dy*0.3) - 0.5) + (((512-mousex)-256) / 512);
   }
 
-  if (x >= 512) {
-     x = 512 - (x - 512);
-     dx = - dx;
+  var newX = x + dx;
+  var newY = y + dy;
+  var newZ = z + dz;
+
+  if (newY >= 512) {
+    newY = random(newY + newX * 11 + newZ * 7) * 0.5 + 0.1;
+    newX = random(newX + newY) * 512;
+    newZ = random(newX + newZ) * 512;
   }
-  if (y < 0.0) {
-     y = 512 - y;
-     dy = -0.1;
-  }
-  if (y >= 512) {
-     y = 512 - (y - 512);
-     dy = -dy;
-  }
-  if (z < 0.0) {
-     z = -z;
-     dz = -dz;
-  }
-  if (z >= 512) {
-     z = 512 - (z - 512);
-     dz = -dz;
-  }
-  this.x = x;
-  this.y = y;
-  this.z = z;
+
+  this.x = newX;
+  this.y = newY;
+  this.z = newZ;
   this.dx = dx;
   this.dy = dy;
   this.dz = dz;
 }
 
 static setup() {
-  Turtle.setCount(600000);
-  Turtle.fillRandom("x", 0, 512);
-  Turtle.fillRandom("y", 0, 512);
-  Turtle.fillRandom("z", 0, 512);
-  Turtle.fillRandomDir3("dx", "dy", "dz");
+  Turtle.setCount(1000000);
+  Turtle.fillRandom("y", 1, 512);
+  Turtle.fillRandom("x", 0, 6.283185307179586);
+  Turtle.ring();
+  Turtle.initD();
   Turtle.setColor();
-
-  Rabbit.setCount(600000);
-  Rabbit.fillRandom("x", 0, 512);
-  Rabbit.fillRandom("y", 0, 512);
-  Rabbit.fillRandom("z", 0, 512);
-  Rabbit.fillRandomDir3("dx", "dy", "dz");
-  Rabbit.setColor2();
 }
 
-static loop(env) {
-  Turtle.move();
-  Rabbit.move();
+static loop() {
+  Turtle.move(mousedown.x);
+  Display.clear();
   Turtle.render();
-  Rabbit.render();
 }
 `;
     }
