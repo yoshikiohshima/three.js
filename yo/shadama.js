@@ -1519,6 +1519,18 @@ function ShadamaFactory(threeRenderer) {
 	this.env.mousedown = {x: x, y: y}
     }
 
+    Shadama.prototype.tester = function() {
+	return {
+	    parse: parse,
+	    update: update,
+	    translate: translate,
+	    s: s,
+	    Breed: Breed,
+	    Patch: Patch,
+	    SymTable: SymTable,
+	}
+    }
+
     var shadamaGrammar = String.raw`
 Shadama {
   TopLevel
@@ -1528,6 +1540,7 @@ Shadama {
   Breed = breed ident "(" Formals ")"
   Patch = patch ident "(" Formals ")"
   Script = def ident "(" Formals ")" Block
+  Helper = helper ident "(" Formals ")" Block
   Static = static ident "(" Formals ")" Block
 
   Formals
@@ -1545,10 +1558,13 @@ Shadama {
     | ExpressionStatement
     | IfStatement
     | ExpressionStatement
+    | ReturnStatement
 
   VariableStatement = var VariableDeclaration ";"
   VariableDeclaration = ident Initialiser?
   Initialiser = "=" Expression
+
+  ReturnStatement = return Expression ";"
 
   ExpressionStatement = Expression ";"
   IfStatement = if "(" Expression ")" Statement (else Statement)?
@@ -1637,10 +1653,12 @@ Shadama {
   patch = "patch" ~identifierPart
   else = "else" ~identifierPart
   def = "def" ~identifierPart
+  helper = "helper" ~identifierPart
   this = "this" ~identifierPart
   self = "self" ~identifierPart
   static = "static" ~identifierPart
   program = "program" ~identifierPart
+  return = "return" ~identifierPart
 
   empty =
   space
@@ -1713,7 +1731,7 @@ Shadama {
                     for (var i = 0; i< ds.children.length; i++) {
 			var d = ds.children[i].symTable(null);
 			var ctor = ds.children[i].ctorName;
-			if (ctor == "Script" || ctor == "Static") {
+			if (ctor == "Script" || ctor == "Static" || ctor == "Helper") {
                             addAsSet(result, d);
 			}
                     }
@@ -1739,6 +1757,14 @@ Shadama {
 		},
 
 		Script(_d, n, _o, ns, _c, b) {
+                    var table = new SymTable();
+                    ns.symTable(table);
+                    b.symTable(table);
+                    table.process();
+                    return {[n.sourceString]: table};
+		},
+
+		Helper(_d, n, _o, ns, _c, b) {
                     var table = new SymTable();
                     ns.symTable(table);
                     b.symTable(table);
@@ -1857,7 +1883,271 @@ Shadama {
             });
 
 	s.addOperation(
-            "glsl_helper(table, vert, frag)",
+	    "glsl_helper(table, vert)",
+	    {
+		Helper(_d, n, _o, ns, _c, b) {
+                    var table = this.args.table;
+                    var vert = this.args.vert;
+
+                    vert.push("float " + n.sourceString + "(");
+
+                    b.glsl_helper(table, vert);
+
+                    vert.crIfNeeded();
+
+                    return {[n.sourceString]: [table, vert.contents(), ["updateHelper", n.sourceString]]};
+		},
+
+		Block(_o, ss, _c) {
+                    var table = this.args.table;
+                    var vert = this.args.vert;
+                    var frag = this.args.frag;
+
+                    vert.pushWithSpace("{\n");
+                    vert.addTab();
+
+		    ss.glsl_helper(table, vert);
+
+                    vert.decTab();
+                    vert.tab();
+                    vert.push("}");
+		},
+
+		StatementList(ss) {
+                    var table = this.args.table;
+                    var vert = this.args.vert;
+                    for (var i = 0; i < ss.children.length; i++) {
+			vert.tab();
+			ss.children[i].glsl_helper(table, vert);
+                    }
+		},
+
+		Statement(e) {
+                    var table = this.args.table;
+                    var vert = this.args.vert;
+                    e.glsl_helper(table, vert, frag);
+                    if (e.ctorName !== "Block" && e.ctorName !== "IfStatement") {
+			vert.push(";");
+			vert.cr();
+                    }
+                    if (e.ctorName == "IfStatement") {
+			vert.cr();
+                    }
+		},
+
+		IfStatement(_i, _o, c, _c, t, _e, optF) {
+                    var table = this.args.table;
+                    var vert = this.args.vert;
+                    vert.pushWithSpace("if");
+                    vert.pushWithSpace("(");
+                    c.glsl_helper(table, vert, frag);
+                    vert.push(")");
+                    t.glsl_helper(table, vert);
+                    if (optF.children.length === 0) { return;}
+                    vert.pushWithSpace("else");
+                    optF.glsl_helper(table, vert);
+		},
+
+		AssignmentStatement(l, _a, e, _) {
+                    var table = this.args.table;
+                    var vert = this.args.vert;
+                    l.glsl_helper(table, vert);
+                    vert.push(" = ");
+                    e.glsl_helper(table, vert);
+		},
+
+		VariableStatement(_v, d, _s) {
+                    var table = this.args.table;
+                    var vert = this.args.vert;
+                    d.glsl_helper(table, vert);
+		},
+
+		VariableDeclaration(n, i) {
+                    var table = this.args.table;
+                    var vert = this.args.vert;
+                    vert.push("float");
+                    vert.pushWithSpace(n.sourceString);
+                    if (i.children.length !== 0) {
+			vert.push(" = ");
+			i.glsl_helper(table, vert);
+                    }
+		},
+
+		Initialiser(_a, e) {
+                    e.glsl_helper(this.args.table, this.args.vert);
+		},
+
+		LeftHandSideExpression_field(n, _p, f) {
+                    var table = this.args.table;
+                    var vert = this.args.vert;
+                    vert.push(n.sourceString);
+		},
+
+		ExpressionStatement(e ,_s) {
+                    var table = this.args.table;
+                    var vert = this.args.vert;
+                    e.glsl_helper(table, vert, frag);
+		},
+
+		Expression(e) {
+                    e.glsl_helper(this.args.table, this.args.vert);
+		},
+
+		EqualityExpression(e) {
+                    e.glsl_helper(this.args.table, this.args.vert);
+		},
+
+		EqualityExpression_equal(l, _, r) {
+                    transBinOp(l, r, " == ", this.args);
+		},
+
+		EqualityExpression_notEqual(l, _, r) {
+                    transBinOp(l, r, " != ", this.args);
+		},
+
+		RelationalExpression(e) {
+                    e.glsl_helper(this.args.table, this.args.vert);
+		},
+
+		RelationalExpression_lt(l, _, r) {
+                    transBinOp(l, r, " < ", this.args);
+		},
+
+		RelationalExpression_gt(l, _, r) {
+                    transBinOp(l, r, " > ", this.args);
+		},
+
+		RelationalExpression_le(l, _, r) {
+                    transBinOp(l, r, " <= ", this.args);
+		},
+
+		RelationalExpression_ge(l, _, r) {
+                    transBinOp(l, r, " >= ", this.args);
+		},
+
+		LogicalExpression(e) {
+                    e.glsl_helper(this.args.table, this.args.vert);
+		},
+
+		LogicalExpression_and(l, _, r) {
+                    transBinOp(l, r, " && ", this.args);
+		},
+
+		LogicalExpression_or(l, _, r) {
+                    transBinOp(l, r, " || ", this.args);
+		},
+
+
+		AddExpression(e) {
+                    e.glsl_helper(this.args.table, this.args.vert);
+		},
+
+		AddExpression_plus(l, _, r) {
+                    transBinOp(l, r, " + ", this.args);
+		},
+
+		AddExpression_minus(l, _, r) {
+                    transBinOp(l, r, " - ", this.args);
+		},
+
+		MulExpression(e) {
+                    e.glsl(this.args.table, this.args.vert);
+		},
+
+		MulExpression_times(l, _, r) {
+                    transBinOp(l, r, " * ", this.args);
+		},
+
+		MulExpression_divide(l, _, r) {
+                    transBinOp(l, r, " / ", this.args);
+		},
+
+		MulExpression_mod(l, _, r) {
+                    transBinOp(l, r, " % ", this.args);
+		},
+
+		UnaryExpression(e) {
+                    e.glsl_helper(this.args.table, this.args.vert);
+		},
+
+		UnaryExpression_plus(_p, e) {
+                    e.glsl_helper(this.args.table, this.args.vert);
+		},
+
+		UnaryExpression_minus(_p, e) {
+                    var table = this.args.table;
+                    var vert = this.args.vert;
+                    vert.pushWithSpace("-");
+                    e.glsl_helper(table, vert);
+		},
+
+		UnaryExpression_not(_p, e) {
+                    var table = this.args.table;
+                    var vert = this.args.vert;
+                    vert.pushWithSpace("!");
+                    e.glsl_helper(table, vert);
+		},
+
+		PrimExpression(e) {
+                    e.glsl_helper(this.args.table, this.args.vert);
+		},
+
+		PrimExpression_paren(_o, e, _c) {
+                    e.glsl_helper(this.args.table, this.args.vert);
+		},
+
+		PrimExpression_number(e) {
+                    var vert = this.args.vert;
+                    var ind = e.sourceString.indexOf(".");
+                    if (ind < 0) {
+			vert.push(e.sourceString + ".0");
+                    } else {
+			vert.push(e.sourceString);
+                    }
+		},
+
+		PrimExpression_field(n, _p, f) {
+                    var table = this.args.table;
+                    var vert = this.args.vert;
+
+                    if (table.isObject(n.sourceString)) {
+			vert.push(n.sourceString + "." + f.sourceString);
+                    } else {
+			throw "error";
+		    }
+		},
+
+		PrimExpression_variable(n) {
+                    vert.push(n.sourceString);
+		},
+
+		PrimitiveCall(n, _o, as, _c) {
+                    var table = this.args.table;
+                    var vert = this.args.vert;
+                    vert.push(n.sourceString);
+                    vert.push("(");
+                    as.glsl_helper(table, vert, frag);
+                    vert.push(")");
+		},
+
+		Actuals_list(h, _c, r) {
+                    var table = this.args.table;
+                    var vert = this.args.vert;
+                    h.glsl_helper(table, vert);
+                    for (var i = 0; i < r.children.length; i++) {
+			vert.push(", ");
+			r.children[i].glsl_helper(table, vert, frag);
+                    }
+		},
+
+		ident(n, rest) {
+		    // ??
+                    this.args.vert.push(this.sourceString);
+		}
+	    });
+
+	s.addOperation(
+            "glsl_inner(table, vert, frag)",
             {
 		Block(_o, ss, _c) {
                     var table = this.args.table;
@@ -1983,7 +2273,7 @@ uniform sampler2D u_that_y;
                     frag.crIfNeeded();
                     frag.push("void main()");
 
-                    b.glsl_helper(table, vert, frag);
+                    b.glsl_inner(table, vert, frag);
 
                     vert.crIfNeeded();
 
@@ -2054,7 +2344,7 @@ uniform sampler2D u_that_y;
                     var vert = new CodeStream();
                     var frag = new CodeStream();
 
-                    return this.glsl_helper(table, vert, frag);
+                    return this.glsl_inner(table, vert, frag);
 		},
 
 		Block(_o, ss, _c) {
@@ -2139,7 +2429,7 @@ uniform sampler2D u_that_y;
 
 		Initialiser(_a, e) {
                     e.glsl(this.args.table, this.args.vert, this.args.frag);
-            },
+		},
 
 		LeftHandSideExpression_field(n, _p, f) {
                     var table = this.args.table;
@@ -2293,10 +2583,7 @@ uniform sampler2D u_that_y;
 		},
 
 		PrimExpression_variable(n) {
-                    var table = this.args.table;
-                    var vert = this.args.vert;
-                    var frag = this.args.frag;
-                    vert.push(n.sourceString);
+                    this.args.vert.push(n.sourceString);
 		},
 
 		PrimitiveCall(n, _o, as, _c) {
@@ -2338,7 +2625,7 @@ uniform sampler2D u_that_y;
 	};
 
 	s.addOperation(
-            "static_method_helper(table, js, method, isOther)",
+            "static_method_inner(table, js, method, isOther)",
             {
 		Actuals_list(h, _c, r) {
                     var table = this.args.table;
@@ -2394,7 +2681,7 @@ uniform sampler2D u_that_y;
                     js.push("(function");
                     js.pushWithSpace(n.sourceString);
                     js.push("(");
-                    js.push(fs.static_method_helper(table, null, null, null));
+                    js.push(fs.static_method_inner(table, null, null, null));
                     js.push(") ");
                     b.static(table, js, method, false);
                     js.push(")");
@@ -2638,7 +2925,7 @@ uniform sampler2D u_that_y;
 				"atan2", "max", "min", "pow" // 2 args
                                ];
                     if (math.indexOf(prim) >= 0) {
-			var actuals = as.static_method_helper(table, null, null, false);
+			var actuals = as.static_method_inner(table, null, null, false);
 			var str = actuals.join(", ");
 			js.push("Math.");
 			js.push(prim);
@@ -2659,20 +2946,20 @@ uniform sampler2D u_that_y;
                     var myTable = table[n.sourceString];
 
                     if (r.sourceString === "Display" && displayBuiltIns.indexOf(method) >= 0) {
-			var actuals = as.static_method_helper(table, null, method, false);
+			var actuals = as.static_method_inner(table, null, method, false);
 			var str = actuals.join(", ");
 			js.push(`env["${r.sourceString}"].${method}(${str})`);
 			return;
                     }
 
                     if (builtIns.indexOf(method) >= 0) {
-			var actuals = as.static_method_helper(table, null, method, false);
+			var actuals = as.static_method_inner(table, null, method, false);
 			var str = actuals.join(", ");
 			js.push(`env["${r.sourceString}"].${method}(${str})`);
 			return;
                     }
 
-                    var actuals = as.static_method_helper(table, null, method, false);
+                    var actuals = as.static_method_inner(table, null, method, false);
                     var formals;
                     if (myTable) {
 			formals = myTable.param;
@@ -3210,7 +3497,6 @@ static setup() {
 
 static loop() {
   Turtle.move(mousedown.x);
-  Display.clear();
   Turtle.render();
 }
 `;
@@ -3324,6 +3610,8 @@ static loop() {
 `;
     }
 
+    runTests = /test.?=/.test(window.location.search);
+
     if (!threeRenderer) {
 	throw "needs a Three JS renderer";
 	return;
@@ -3357,8 +3645,16 @@ static loop() {
     programs["renderBreed"] = renderBreedProgram();
 
 
+    var shadama = new Shadama();
 
-    return new Shadama();
+    if (runTests) {
+	debugger;
+        setTestParams(shadama.tester());
+        grammarUnitTests();
+        symTableUnitTests();
+        translateTests();
+	return shadama;
+    }
 }
 
 //export {
