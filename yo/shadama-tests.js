@@ -352,6 +352,7 @@ function grammarUnitTests() {
     grammarTest("breed Turtle (x, y)", "Breed");
     grammarTest("patch Patch (x, y)", "Patch");
     grammarTest("def foo(x, y) {var x = 3; x = x + 2.1;}", "Script");
+    grammarTest("helper foo(x, y) {return x + y;}", "Helper");
 }
 
 function symTableUnitTests() {
@@ -404,7 +405,8 @@ function symTableUnitTests() {
 function translateTests() {
     console.log(translate("static foo() {Turtle.forward();}", "TopLevel"));
 
-    console.log(translate("static bar(x) {if(x){ Turtle.forward();}}", "TopLevel"));
     console.log(translate("static bar(x) {if(x){ Turtle.forward();} else {Turtle.turn(x);}}", "TopLevel"));
+
+    console.log(translate("helper foo(x, y) {return x + y;}", "Helper"));
 }
 

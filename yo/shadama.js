@@ -1534,7 +1534,7 @@ function ShadamaFactory(threeRenderer) {
     var shadamaGrammar = String.raw`
 Shadama {
   TopLevel
-    = ProgramDecl? (Breed | Patch | Script | Static)*
+    = ProgramDecl? (Breed | Patch | Script | Helper | Static)*
 
   ProgramDecl = program string
   Breed = breed ident "(" Formals ")"
@@ -1889,8 +1889,10 @@ Shadama {
                     var table = this.args.table;
                     var vert = this.args.vert;
 
-                    vert.push("float " + n.sourceString + "(");
-
+                    vert.push("float " + n.sourceString);
+		    vert.push("(");
+		    ns.glsl_helper(table, vert);
+		    vert.push(")");
                     b.glsl_helper(table, vert);
 
                     vert.crIfNeeded();
@@ -1898,10 +1900,21 @@ Shadama {
                     return {[n.sourceString]: [table, vert.contents(), ["updateHelper", n.sourceString]]};
 		},
 
+		Formals_list(h, _c, r) {
+                    var table = this.args.table;
+                    var vert = this.args.vert;
+
+                    vert.push(h.sourceString);
+                    for (var i = 0; i < r.children.length; i++) {
+			var c = r.children[i];
+			vert.push(", ");
+			vert.push(c.sourceString);
+                    }
+		},
+
 		Block(_o, ss, _c) {
                     var table = this.args.table;
                     var vert = this.args.vert;
-                    var frag = this.args.frag;
 
                     vert.pushWithSpace("{\n");
                     vert.addTab();
@@ -1925,7 +1938,7 @@ Shadama {
 		Statement(e) {
                     var table = this.args.table;
                     var vert = this.args.vert;
-                    e.glsl_helper(table, vert, frag);
+                    e.glsl_helper(table, vert);
                     if (e.ctorName !== "Block" && e.ctorName !== "IfStatement") {
 			vert.push(";");
 			vert.cr();
@@ -1940,12 +1953,22 @@ Shadama {
                     var vert = this.args.vert;
                     vert.pushWithSpace("if");
                     vert.pushWithSpace("(");
-                    c.glsl_helper(table, vert, frag);
+                    c.glsl_helper(table, vert);
                     vert.push(")");
                     t.glsl_helper(table, vert);
                     if (optF.children.length === 0) { return;}
                     vert.pushWithSpace("else");
                     optF.glsl_helper(table, vert);
+		},
+
+
+		ReturnStatement(_r, e, _s) {
+                    var table = this.args.table;
+                    var vert = this.args.vert;
+
+		    vert.pushWithSpace("return");
+		    e.glsl_helper(table, vert);
+		    vert.push(";");
 		},
 
 		AssignmentStatement(l, _a, e, _) {
@@ -1986,7 +2009,7 @@ Shadama {
 		ExpressionStatement(e ,_s) {
                     var table = this.args.table;
                     var vert = this.args.vert;
-                    e.glsl_helper(table, vert, frag);
+                    e.glsl_helper(table, vert);
 		},
 
 		Expression(e) {
@@ -2126,7 +2149,7 @@ Shadama {
                     var vert = this.args.vert;
                     vert.push(n.sourceString);
                     vert.push("(");
-                    as.glsl_helper(table, vert, frag);
+                    as.glsl_helper(table, vert);
                     vert.push(")");
 		},
 
@@ -2136,14 +2159,14 @@ Shadama {
                     h.glsl_helper(table, vert);
                     for (var i = 0; i < r.children.length; i++) {
 			vert.push(", ");
-			r.children[i].glsl_helper(table, vert, frag);
+			r.children[i].glsl_helper(table, vert);
                     }
 		},
 
 		ident(n, rest) {
 		    // ??
                     this.args.vert.push(this.sourceString);
-		}
+		},
 	    });
 
 	s.addOperation(
@@ -2345,6 +2368,14 @@ uniform sampler2D u_that_y;
                     var frag = new CodeStream();
 
                     return this.glsl_inner(table, vert, frag);
+		},
+
+		Helper(_d, n, _o, ns, _c, b) {
+                    var inTable = this.args.table;
+                    var table = inTable[n.sourceString];
+                    var vert = new CodeStream();
+
+                    return this.glsl_helper(table, vert);
 		},
 
 		Block(_o, ss, _c) {
@@ -3648,7 +3679,6 @@ static loop() {
     var shadama = new Shadama();
 
     if (runTests) {
-	debugger;
         setTestParams(shadama.tester());
         grammarUnitTests();
         symTableUnitTests();
