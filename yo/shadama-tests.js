@@ -403,10 +403,23 @@ function symTableUnitTests() {
 }
 
 function translateTests() {
-    console.log(translate("static foo() {Turtle.forward();}", "TopLevel"));
-
-    console.log(translate("static bar(x) {if(x){ Turtle.forward();} else {Turtle.turn(x);}}", "TopLevel"));
-
     console.log(translate("helper foo(x, y) {return x + y;}", "Helper"));
+
+    console.log(translate(`
+helper foo(x, y) {return x + y;}
+helper bar(x, y) {return foo(x, y + 1);}
+
+def baz() {
+  this.x = foo(this.x, this.y);
+  this.y = foo(this.x, this.y);
+}
+
+def bong() {
+  this.x = bar(this.y, this.x);
+}
+
+
+`
+));
 }
 

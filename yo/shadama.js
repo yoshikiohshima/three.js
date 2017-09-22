@@ -828,7 +828,7 @@ function ShadamaFactory(threeRenderer) {
                     this.scripts[js[1]] = [programFromTable(table, entry[1], entry[2], js[1]),
                                       table.insAndParamsAndOuts()];
 		}
-            }
+	    }
 	}
 
 	if (this.setupCode !== newSetupCode) {
@@ -1671,6 +1671,8 @@ Shadama {
     var g;
     var s;
 
+    var globalTable; // This is a bad idea but then I don't know how to keep the reference to global.
+
     function initCompiler() {
 	g = ohm.grammar(shadamaGrammar);
 	s = g.createSemantics();
@@ -1679,27 +1681,27 @@ Shadama {
 
     function initSemantics() {
 	function addDefaults(obj) {
-            obj["clear"] = new SymTable([]);
+            obj["clear"] = new SymTable([], true);
             obj["setCount"] = new SymTable([
-		["param", null, "num"]]);
-            obj["draw"] = new SymTable([]);
-            obj["render"] = new SymTable([]);
+		["param", null, "num"]], true);
+            obj["draw"] = new SymTable([], true);
+            obj["render"] = new SymTable([], true);
             obj["fillRandom"] = new SymTable([
 		["param", null, "name"],
 		["param", null, "min"],
-		["param", null, "max"]]);
+		["param", null, "max"]], true);
             obj["fillRandomDir"] = new SymTable([
 		["param", null, "xDir"],
-		["param", null, "yDir"]]);
+		["param", null, "yDir"]] ,true);
             obj["fillRandomDir3"] = new SymTable([
 		["param", null, "xDir"],
 		["param", null, "yDir"],
-		["param", null, "zDir"]]);
+		["param", null, "zDir"]], true);
             obj["fillSpace"] = new SymTable([
 		["param", null, "xName"],
 		["param", null, "yName"],
 		["param", null, "x"],
-		["param", null, "y"]]);
+		["param", null, "y"]], true);
             obj["fillImage"] = new SymTable([
 		["param", null, "xName"],
 		["param", null, "yName"],
@@ -1707,16 +1709,45 @@ Shadama {
 		["param", null, "gName"],
 		["param", null, "bName"],
 		["param", null, "aName"],
-		["param", null, "imageData"]]);
+		["param", null, "imageData"]], true);
             obj["diffuse"] = new SymTable([
-		["param", null, "name"],
-	    ]);
+		["param", null, "name"]], true);
             obj["random"] = new SymTable([
-		["param", null, "seed"],
-	    ]);
+		["param", null, "seed"]], true);
             obj["playSound"] = new SymTable([
-		["param", null, "name"],
-	    ]);
+		["param", null, "name"]], true);
+	}
+
+	function processHelper(symDict) {
+	    var queue;   // = [name]
+	    var result;  // = {<name>: <name>}
+	    function traverse() {
+		var head = queue.shift();
+		if (!result[head]) {
+		    result.add(head, head);
+		    var d = symDict[head];
+		    if (d && d.type == "helper") {
+			d.usedHelpersAndPrimitives.keysAndValuesDo((h, v) => {
+			    queue.push(h);
+			});
+		    }
+		}
+	    }
+
+	    for (var k in symDict) {
+		var dict = symDict[k];
+		if (dict.type == "method") {
+		    queue = [];
+		    result = new OrderedPair();
+		    dict.usedHelpersAndPrimitives.keysAndValuesDo((i, v) => {
+			queue.push(i);
+		    });
+		    while (queue.length > 0) {
+			traverse();
+		    }
+		    dict.allUsedHelpersAndPrimitives = result;
+		}
+	    }
 	}
 
 	s.addOperation(
@@ -1735,6 +1766,8 @@ Shadama {
                             addAsSet(result, d);
 			}
                     }
+		    processHelper(result);
+		    globalTable = result;
                     return result;
 		},
 
@@ -1768,7 +1801,7 @@ Shadama {
                     var table = new SymTable();
                     ns.symTable(table);
                     b.symTable(table);
-                    table.process();
+		    table.beHelper();
                     return {[n.sourceString]: table};
 		},
 
@@ -1776,6 +1809,7 @@ Shadama {
                     var table = new SymTable();
                     ns.symTable(table);
                     table.process();
+		    table.beStatic();
                     return {[n.sourceString]: table};
 		},
 
@@ -1838,7 +1872,7 @@ Shadama {
 		},
 
 		PrimitiveCall(n, _o, as, _c) {
-                    this.args.table.maybePrimitive(n.sourceString);
+                    this.args.table.maybeHelperOrPrimitive(n.sourceString);
                     return as.symTable(this.args.table);
 		},
 
@@ -1896,8 +1930,10 @@ Shadama {
                     b.glsl_helper(table, vert);
 
                     vert.crIfNeeded();
+		    var code = vert.contents();
+		    table.helperCode = code;
 
-                    return {[n.sourceString]: [table, vert.contents(), ["updateHelper", n.sourceString]]};
+                    return {[n.sourceString]: [table, code, "", ["updateHelper", n.sourceString]]};
 		},
 
 		Formals_list(h, _c, r) {
@@ -1967,8 +2003,8 @@ Shadama {
                     var vert = this.args.vert;
 
 		    vert.pushWithSpace("return");
+		    vert.push(" ");
 		    e.glsl_helper(table, vert);
-		    vert.push(";");
 		},
 
 		AssignmentStatement(l, _a, e, _) {
@@ -2074,7 +2110,7 @@ Shadama {
 		},
 
 		MulExpression(e) {
-                    e.glsl(this.args.table, this.args.vert);
+                    e.glsl_helper(this.args.table, this.args.vert);
 		},
 
 		MulExpression_times(l, _, r) {
@@ -2141,7 +2177,7 @@ Shadama {
 		},
 
 		PrimExpression_variable(n) {
-                    vert.push(n.sourceString);
+                    this.args.vert.push(n.sourceString);
 		},
 
 		PrimitiveCall(n, _o, as, _c) {
@@ -2272,7 +2308,7 @@ uniform sampler2D u_that_y;
 
                     vert.crIfNeeded();
 
-                    table.primitives().forEach((n) => {
+                    table.primitivesAndHelpers().forEach((n) => {
 			vert.push(n);
                     });
 
@@ -3098,14 +3134,15 @@ uniform sampler2D u_that_y;
     }
 
     class SymTable {
-	constructor(entries) {
+	constructor(entries, optIsPrimitive) {
             this.forBreed = true;
             this.hasBreedInput = false;
             this.hasPatchInput = false;
             this.defaultUniforms = null;
             this.defaultAttributes = null;
-            this.usedPrimitives = {};
 
+            this.usedHelpersAndPrimitives = new OrderedPair();   // foo(a) => foo -> foo
+	    this.type = optIsPrimitive ? "primitive" : "method";
             // - from source (extensional)
             // I use this term because I want to remember which is which)
 
@@ -3130,6 +3167,14 @@ uniform sampler2D u_that_y;
 
             this.defaultUniforms = ["u_resolution", "u_particleLength"];
             this.defaultAttributes = ["a_index"];
+	}
+
+	beHelper() {
+	    this.type = "helper";
+	}
+
+	beStatic() {
+	    this.type = "static";
 	}
 
 	process() {
@@ -3304,16 +3349,14 @@ uniform sampler2D u_that_y;
             return result;
 	}
 
-	maybePrimitive(aString) {
-            this.usedPrimitives[aString] = aString;
+	maybeHelperOrPrimitive(aString) {
+            this.usedHelpersAndPrimitives.add(aString, aString);
 	}
 
-	primitives() {
-            var result = [];
-            for (var n in this.usedPrimitives) {
+	primitivesAndHelpers() {
+	    return this.allUsedHelpersAndPrimitives.keysAndValuesCollect((n, v) => {
 		if (n === "random") {
-                    result.push(
-`
+                    return `
 highp float random(float seed) {
    highp float a  = 12.9898;
    highp float b  = 78.233;
@@ -3322,10 +3365,13 @@ highp float random(float seed) {
    highp float sn = mod(dt, 3.14159);
    return fract(sin(sn) * c);
 }
-`);
+`
+		} else if (globalTable[n] && globalTable[n].type == "helper") {
+		    return globalTable[n].helperCode;
+		} else {
+		    return "";
 		}
-            };
-            return result;
+            });
 	}
     }
 
@@ -3432,6 +3478,10 @@ highp float random(float seed) {
 program "Tornado"
 
 breed Turtle (x, y, z, dx, dy, dz, r, g, b, a)
+
+helper normalX(x) {
+  return x + 10;
+}
 
 def setColor() {
   this.r = this.x / 512;
