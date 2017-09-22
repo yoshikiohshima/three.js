@@ -2377,24 +2377,14 @@ uniform sampler2D u_that_y;
 
 		Breed(_b, n, _o, fs, _c) {
                     var table = this.args.table;
-                    var vert = new CodeStream();
-                    var frag = new CodeStream();
-                    var js = [];
-                    js.push("updateBreed");
-                    js.push(n.sourceString);
-                    js.push(fs.glsl_script_formals());
-                    return {[n.sourceString]: [table[n.sourceString], vert.contents(), frag.contents(), js]};
+                    var js = ["updateBreed", n.sourceString, fs.glsl_script_formals()];
+                    return {[n.sourceString]: [table[n.sourceString], "", "", js]};
 		},
 
 		Patch(_p, n, _o, fs, _c) {
                     var table = this.args.table;
-                    var vert = new CodeStream();
-                    var frag = new CodeStream();
-                    var js = [];
-                    js.push("updatePatch");
-                    js.push(n.sourceString);
-                    js.push(fs.glsl_script_formals());
-                    return {[n.sourceString]: [table[n.sourceString], vert.contents(), frag.contents(), js]};
+                    var js = ["updatePatch", n.sourceString, fs.glsl_script_formals()];
+                    return {[n.sourceString]: [table[n.sourceString], "", "" ,js]};
 		},
 
 		Script(_d, n, _o, ns, _c, b) {
