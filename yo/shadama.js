@@ -302,11 +302,14 @@ function ShadamaFactory(threeRenderer) {
 	    vec3 clipPos = (normPos * 2.0 - 1.0) * (u_resolution.x / 2.0);
 
 	    gl_Position = mvpMatrix * vec4(clipPos, 1.0);
+	    gl_PointSize = 16.0;
 
 	    float r = texelFetch(u_r, fc, 0).r;
 	    float g = texelFetch(u_g, fc, 0).r;
 	    float b = texelFetch(u_b, fc, 0).r;
 	    float a = texelFetch(u_a, fc, 0).r;
+
+	    v_color = vec4(r, g, b, a);
 
 	}`,
 
@@ -836,7 +839,7 @@ function ShadamaFactory(threeRenderer) {
     function programFromTable3(table, vert, frag, name) {
 	return (function () {
             var debugName = name;
-	    if (debugName === "set") {
+	    if (debugName === "get") {
 		debugger;
 	    }
             var prog = createProgram(createShader(name + ".vert", vert),
@@ -873,7 +876,7 @@ function ShadamaFactory(threeRenderer) {
 		// outs: [[varName, fieldName]]
 		// ins: [[varName, fieldName]]
 		// params: {shortName: value}
-		if (debugName === "set") {
+		if (debugName === "get") {
 		debugger;
 		}
 		var object = objects["this"];
@@ -1073,7 +1076,7 @@ function ShadamaFactory(threeRenderer) {
 
 	    for (var i = 0; i < renderRequests.length; i++) {
 		var item = renderRequests[i];
-		if (item.constructor == Breed) {
+		if (item.constructor == Breed || item.constructor == Patch) {
 		    item.realRender(mvpMatrix);
 		}
 	    }
@@ -1125,6 +1128,7 @@ function ShadamaFactory(threeRenderer) {
     }
 
     Shadama.prototype.debugDisplay = function(objName, name) {
+
 	var object = this.env[objName];
 	var forBreed = object.constructor == Breed;
 	var width = forBreed ? T : FW;
@@ -2483,6 +2487,18 @@ Shadama {
   vec2 _pos = vec2(_x, _y);
 `;
 
+		    var voxelInput = `
+  float _x = texelFetch(u_that_x, ivec2(a_index), 0).r;
+  float _y = texelFetch(u_that_y, ivec2(a_index), 0).r;
+  float _z = texelFetch(u_that_z, ivec2(a_index), 0).r;
+  _x = floor(_x / v_step); // 8   //  [0..64), if originally within [0..512)
+  _y = floor(_y / v_step); // 8
+  _z = floor(_z / v_step); // 8
+
+  int index = int(_z * v_resolution.x * v_resolution.y + _y * v_resolution.x + _x);
+  vec2 _pos = vec2(index % int(u_resolution.x), index / int(u_resolution.x));
+`;
+
                     var patchPrologue = `
   vec2 oneToOne = (_pos / u_resolution) * 2.0 - 1.0;
 `;
@@ -2492,17 +2508,6 @@ Shadama {
 `;
 
 		    var voxelPrologue = `
-  float t_x = texelFetch(u_that_x, ivec2(a_index), 0).r;
-  float t_y = texelFetch(u_that_y, ivec2(a_index), 0).r;
-  float t_z = texelFetch(u_that_z, ivec2(a_index), 0).r;
-
-  float _x = floor(t_x / v_step); // 8   //  [0..64), if originally within [0..512)
-  float _y = floor(t_y / v_step); // 8
-  float _z = floor(t_z / v_step); // 8
-
-  int index = int(_z * v_resolution.x * v_resolution.y + _y * v_resolution.x + _x);
-
-  vec2 _pos = vec2(index % int(u_resolution.x), index / int(u_resolution.x));
   vec2 oneToOne = (_pos / u_resolution.xy) * 2.0 - 1.0;
 `;
 
@@ -2514,8 +2519,12 @@ Shadama {
                     vert.pushWithSpace("{\n");
                     vert.addTab();
 
-                    if ((table.hasPatchInput || !table.forBreed) && dimension == 2) {
-			vert.push(patchInput);
+                    if ((table.hasPatchInput || !table.forBreed)) {
+			if (dimension == 2) {
+			    vert.push(patchInput);
+			} else {
+			    vert.push(voxelInput);
+			}
                     }
 
                     if (table.forBreed) {
@@ -2564,7 +2573,8 @@ uniform float u_particleLength;
 
 		    if (dimension == 3) {
 			breedPrologue = breedPrologue + `uniform float v_step;
-uniform vec3 v_resolution;`;
+uniform vec3 v_resolution;
+`;
 		    }
 
                     var patchPrologue = breedPrologue + `
@@ -3761,13 +3771,26 @@ breed Turtle (x, y, z, dx, dy, dz, r, g, b, a)
 patch V(r, g, b, a)
 
 def set(voxel) {
-  voxel.r = 100.0;
-  voxel.g = 10.0;
+  voxel.r = 0.0;
+  voxel.g = 1.0;
+  voxel.b = 1.0;
+  voxel.a = 1.0;
+}
+
+def get(voxel) {
+  this.b = voxel.r;
+  this.a = voxel.g;
 }
 
 static setup() {
-  Turtle.fillSpace("x", "y", 512, 512);
+  Turtle.fillSpace("x", "z", 512, 512);
   Turtle.set(V);
+  Turtle.get(V);
+  V.render();
+}
+
+static loop() {
+  V.render();
 }
 `;
     }
