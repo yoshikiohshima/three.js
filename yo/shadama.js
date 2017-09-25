@@ -439,7 +439,6 @@ function ShadamaFactory(threeRenderer) {
 	if (success) {
             return shader;
 	}
-	debugger;
 	console.log(source);
 	console.log(gl.getShaderInfoLog(shader));
 	alert(gl.getShaderInfoLog(shader));
@@ -715,7 +714,7 @@ function ShadamaFactory(threeRenderer) {
     function programFromTable(table, vert, frag, name) {
 	return (function () {
             var debugName = name;
-	    if (debugName === "clear") {
+	    if (debugName === "set") {
 	    }
             var prog = createProgram(createShader(name + ".vert", vert),
                                      createShader(name + ".frag", frag));
@@ -752,8 +751,8 @@ function ShadamaFactory(threeRenderer) {
 		// outs: [[varName, fieldName]]
 		// ins: [[varName, fieldName]]
 		// params: {shortName: value}
-		if (debugName === "clear") {
-		}
+	    if (debugName === "set") {
+	    }
 		var object = objects["this"];
 
 		outs.forEach((pair) => {
@@ -837,7 +836,8 @@ function ShadamaFactory(threeRenderer) {
     function programFromTable3(table, vert, frag, name) {
 	return (function () {
             var debugName = name;
-	    if (debugName === "clear") {
+	    if (debugName === "set") {
+		debugger;
 	    }
             var prog = createProgram(createShader(name + ".vert", vert),
                                      createShader(name + ".frag", frag));
@@ -873,7 +873,8 @@ function ShadamaFactory(threeRenderer) {
 		// outs: [[varName, fieldName]]
 		// ins: [[varName, fieldName]]
 		// params: {shortName: value}
-		if (debugName === "clear") {
+		if (debugName === "set") {
+		debugger;
 		}
 		var object = objects["this"];
 
@@ -999,6 +1000,7 @@ function ShadamaFactory(threeRenderer) {
     }
 
     Shadama.prototype.loadShadama = function(id, source) {
+
 	var newSetupCode;
 	var oldProgramName = this.programName;
 	this.statics = {};
@@ -1011,6 +1013,7 @@ function ShadamaFactory(threeRenderer) {
 	this.cleanUpEditorState();
 	var result = translate(source, "TopLevel", syntaxError);
 	this.compilation = result;
+
 	if (!result) {return "";}
 	if (oldProgramName != result["_programName"]) {
             this.resetSystem();
@@ -1033,7 +1036,7 @@ function ShadamaFactory(threeRenderer) {
                     update(Patch, js[1], js[2], this.env);
 		} else if (js[0] === "updateScript") {
                     var table = entry[0];
-		    var func = dimension = 2 ? programFromTable : programFromTable3;
+		    var func = dimension == 2 ? programFromTable : programFromTable3;
                     this.scripts[js[1]] = [ func(table, entry[1], entry[2], js[1]),
                                       table.insAndParamsAndOuts()];
 		}
@@ -1122,7 +1125,7 @@ function ShadamaFactory(threeRenderer) {
     }
 
     Shadama.prototype.debugDisplay = function(objName, name) {
-	var object = env[objName];
+	var object = this.env[objName];
 	var forBreed = object.constructor == Breed;
 	var width = forBreed ? T : FW;
 	var height = forBreed ? T : FH;
@@ -1138,9 +1141,9 @@ function ShadamaFactory(threeRenderer) {
 	var prog = programs["debugPatch"];
 
 	if (forBreed) {
-            setTargetBuffer(framebufferD0, this.debugTexture0);
+            setTargetBuffer(framebufferD0, debugTexture0);
 	} else {
-            setTargetBuffer(framebufferD1, this.debugTexture1);
+            setTargetBuffer(framebufferD1, debugTexture1);
 	}
 
 	state.useProgram(prog.program);
@@ -1557,42 +1560,6 @@ function ShadamaFactory(threeRenderer) {
 	    gl.bindVertexArray(null);
 	}
 
-	diffuse(name) {
-	    var prog = programs["diffusePatch"];
-
-	    var target = this["new"+name];
-	    var source = this[name];
-
-	    setTargetBuffer(framebufferR, target);
-
-	    state.useProgram(prog.program);
-	    gl.bindVertexArray(prog.vao);
-
-	    state.setCullFace(THREE.CullFaceNone);
-	    state.setBlending(THREE.NoBlending);
-
-	    state.activeTexture(gl.TEXTURE0);
-	    state.bindTexture(gl.TEXTURE_2D, source);
-	    gl.uniform1i(prog.uniLocations["u_value"], 0);
-
-	    gl.drawArrays(gl.TRIANGLES, 0, 6);
-
-	    gl.flush();
-	    setTargetBuffer(null, null);
-
-	    this["new"+name] = source;
-	    this[name] = target;
-
-	    gl.bindVertexArray(null);
-	};
-    }
-
-    class Voxel {
-
-	constructor() {
-	    this.own = {};
-	}
-
 	render() {
 	    renderRequests.push(this);
 	}
@@ -1644,6 +1611,35 @@ function ShadamaFactory(threeRenderer) {
 
 	    gl.bindVertexArray(null);
 	}
+
+	diffuse(name) {
+	    var prog = programs["diffusePatch"];
+
+	    var target = this["new"+name];
+	    var source = this[name];
+
+	    setTargetBuffer(framebufferR, target);
+
+	    state.useProgram(prog.program);
+	    gl.bindVertexArray(prog.vao);
+
+	    state.setCullFace(THREE.CullFaceNone);
+	    state.setBlending(THREE.NoBlending);
+
+	    state.activeTexture(gl.TEXTURE0);
+	    state.bindTexture(gl.TEXTURE_2D, source);
+	    gl.uniform1i(prog.uniLocations["u_value"], 0);
+
+	    gl.drawArrays(gl.TRIANGLES, 0, 6);
+
+	    gl.flush();
+	    setTargetBuffer(null, null);
+
+	    this["new"+name] = source;
+	    this[name] = target;
+
+	    gl.bindVertexArray(null);
+	};
     }
 
     Shadama.prototype.cleanUpEditorState = function() {
@@ -2496,18 +2492,18 @@ Shadama {
 `;
 
 		    var voxelPrologue = `
-  float __x = texelFetch(u_that_x, ivec2(a_index), 0).r;
-  float __y = texelFetch(u_that_y, ivec2(a_index), 0).r;
-  float __z = texelFetch(u_that_z, ivec2(a_index), 0).r;
+  float t_x = texelFetch(u_that_x, ivec2(a_index), 0).r;
+  float t_y = texelFetch(u_that_y, ivec2(a_index), 0).r;
+  float t_z = texelFetch(u_that_z, ivec2(a_index), 0).r;
 
-  float _x = floor(__x / v_step); // 8   //  [0..64), if originally within [0..512)
-  float _y = floor(__y / v_step); // 8
-  float _z = floor(__z / v_step); // 8
+  float _x = floor(t_x / v_step); // 8   //  [0..64), if originally within [0..512)
+  float _y = floor(t_y / v_step); // 8
+  float _z = floor(t_z / v_step); // 8
 
-  int index = _z * v_resolution.x * v_resolution.y + _y * v_resolution.x +_ _x;
+  int index = int(_z * v_resolution.x * v_resolution.y + _y * v_resolution.x + _x);
 
-  vec2 _pos = vec2(index % u_resolution.x, floor(index / u_resolution.x));
-  vec2 oneToOne = _pos / u_resolution.x;
+  vec2 _pos = vec2(index % int(u_resolution.x), index / int(u_resolution.x));
+  vec2 oneToOne = (_pos / u_resolution.xy) * 2.0 - 1.0;
 `;
 
                     var epilogue = `
@@ -2518,14 +2514,18 @@ Shadama {
                     vert.pushWithSpace("{\n");
                     vert.addTab();
 
-                    if (table.hasPatchInput || !table.forBreed) {
+                    if ((table.hasPatchInput || !table.forBreed) && dimension == 2) {
 			vert.push(patchInput);
                     }
 
                     if (table.forBreed) {
 			vert.push(breedPrologue);
                     } else {
-			vert.push(patchPrologue);
+			if (dimension == 2) {
+			    vert.push(patchPrologue);
+			} else {
+			    vert.push(voxelPrologue);
+			}
                     }
 
                     table.scalarParamTable.keysAndValuesDo((key, entry) => {
@@ -2562,10 +2562,20 @@ uniform vec2 u_resolution;
 uniform float u_particleLength;
 `;
 
+		    if (dimension == 3) {
+			breedPrologue = breedPrologue + `uniform float v_step;
+uniform vec3 v_resolution;`;
+		    }
+
                     var patchPrologue = breedPrologue + `
 uniform sampler2D u_that_x;
 uniform sampler2D u_that_y;
 `;
+
+		    if (dimension == 3) {
+			patchPrologue = patchPrologue + `uniform sampler2D u_that_z;
+`;
+		    }
 
                     vert.push(table.forBreed && !table.hasPatchInput ? breedPrologue : patchPrologue);
 
@@ -3507,8 +3517,13 @@ uniform sampler2D u_that_y;
             if ((this.otherOut.size() > 0 || this.otherIn.size() > 0) &&
 		this.defaultUniforms.indexOf("u_that_x") < 0) {
 		this.defaultUniforms = this.defaultUniforms.concat(["u_that_x", "u_that_y"]);
-            }
-	}
+		if (dimension == 3) {
+		    if (this.defaultUniforms.indexOf("u_that_z") < 0) {
+			this.defaultUniforms = this.defaultUniforms.concat(["u_that_z", "v_step", "v_resolution"]);
+		    }
+		}
+	    }
+        }
 
 	usedAsOther(n) {
             var result = false;
@@ -3743,108 +3758,16 @@ highp float random(float seed) {
     Shadama.prototype.testCode3D = function() {
 	return `
 breed Turtle (x, y, z, dx, dy, dz, r, g, b, a)
+patch V(r, g, b, a)
 
-
-helper normalX(x) {
-  return x + 10;
-}
-
-def setColor() {
-  this.r = this.x / 512;
-  this.g = this.y / 512;
-  this.b = this.z / 512;
-  this.a = 1.0;
-}
-
-def initD() {
-  var offX = this.x - 256;
-  var offZ = this.z - 256;
-  var theta = atan(offX, offZ);
-  var dist2 = sqrt(offX * offX + offZ * offZ);
-  this.dx = -cos(theta) * dist2 / 256;
-  this.dy = 0;
-  this.dz = sin(theta) * dist2 / 256;
-}
-
-def ring() {
-  var x = this.x;
-  var r = random(x);
-  this.x = cos(x) * 200 * r + 256;
-  this.z = sin(x) * 200 * r + 256;
-}
-
-def move(mousex) {
-  var x = this.x;
-  var y = this.y;
-  var z = this.z;
-
-  var dx = this.dx;
-  var dy = this.dy;
-  var dz = this.dz;
-
-  var offX = x - 256;
-  var offY = y - 256;
-  var offZ = z - 256;
-
-  var dist2 = sqrt(offX * offX + offZ * offZ);
-  var v = sqrt(dx * dx + dy * dy + dz * dz);
-
-  var gfactor = step(0.1, 1/y);
-  var gx = gfactor * (-(offX/dist2) * 0.1);
-  var gy = gfactor * (smoothstep(0.0001, 1, 1/dist2) * 4);
-  var gz = gfactor * (-(offZ/dist2) * 0.1);
-
-  var theta = atan(offX, offZ);
-  theta = theta - 0.02;
-  var px = -cos(theta);
-  var py = 0.0;
-  var pz = sin(theta);
-
-  dx = (dx + px) / 2 + gx;
-  dy = py + gy;
-  dz = (dz + pz) / 2 + gz;
-
-  var newV = sqrt(dx * dx + dy * dy + dz * dz);
-
-  if (y < 10) {
-    dx = dx * (v / newV);
-    dz = dz * (v / newV);
-  } else {
-    dy = dy + 0.5;
-    dx = dx + (random(dy*101+dz*0.3) - 0.5) + ((mousex-256) / 512);
-    dz = dz + (random(dx*101+dy*0.3) - 0.5) + (((512-mousex)-256) / 512);
-  }
-
-  var newX = x + dx;
-  var newY = y + dy;
-  var newZ = z + dz;
-
-  if (newY >= 512) {
-    newY = random(newY + newX * 11 + newZ * 7) * 0.5 + 0.1;
-    newX = random(newX + newY) * 512;
-    newZ = random(newX + newZ) * 512;
-  }
-
-  this.x = newX;
-  this.y = newY;
-  this.z = newZ;
-  this.dx = dx;
-  this.dy = dy;
-  this.dz = dz;
+def set(voxel) {
+  voxel.r = 100.0;
+  voxel.g = 10.0;
 }
 
 static setup() {
-  Turtle.setCount(1000000);
-  Turtle.fillRandom("y", 1, 512);
-  Turtle.fillRandom("x", 0, 6.283185307179586);
-  Turtle.ring();
-  Turtle.initD();
-  Turtle.setColor();
-}
-
-static loop() {
-  Turtle.move(mousedown.x);
-  Turtle.render();
+  Turtle.fillSpace("x", "y", 512, 512);
+  Turtle.set(V);
 }
 `;
     }
@@ -4000,10 +3923,9 @@ static loop() {
         grammarUnitTests();
         symTableUnitTests();
         translateTests();
-	return shadama;
     }
+    return shadama;
 }
-
 //export {
 //   ShadamaFactory
 //}
