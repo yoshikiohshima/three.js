@@ -256,7 +256,9 @@ function ShadamaFactory(threeRenderer, optDimension) {
 	`#version 300 es
 	layout (location = 0) in vec2 a_index;
 	uniform mat4 mvpMatrix;
-	uniform vec3 u_resolution;
+	uniform ivec3 u_resolution;
+	uniform ivec3 v_resolution;
+	uniform int v_step;
 
 	uniform sampler2D u_r;
 	uniform sampler2D u_g;
@@ -270,18 +272,24 @@ function ShadamaFactory(threeRenderer, optDimension) {
 	    // the framebuffer will be 512^512, which is square of cube root of 64 * 64 * 64
             // fc varies over this.
 
-	    int index = fc.y * int(u_resolution.x) + fc.x;
+	    int index = fc.y * u_resolution.x + fc.x;
 
-	    int x = index % int(u_resolution.x);
-	    int y = index / int(u_resolution.x);
-	    int z = index % int(u_resolution.x * u_resolution.y);
+	    int z = index / (v_resolution.x * v_resolution.y);
+	    int xy = index % (v_resolution.x * v_resolution.y);
+
+	    int x = xy % v_resolution.x;
+	    int y = xy / v_resolution.x;
+
+	    x = x * v_step;
+	    y = y * v_step;
+	    z = z * v_step;
 			 
 	    vec3 dPos = vec3(x, y, z);
-	    vec3 normPos = dPos / u_resolution;
-	    vec3 clipPos = (normPos * 2.0 - 1.0) * (u_resolution.x / 2.0);
+	    vec3 normPos = dPos / float(u_resolution);
+	    vec3 clipPos = (normPos * 2.0 - 1.0) * float(u_resolution.x / 2);
 
 	    gl_Position = mvpMatrix * vec4(clipPos, 1.0);
-	    gl_PointSize = 16.0;
+	    gl_PointSize = 8.0;
 
 	    float r = texelFetch(u_r, fc, 0).r;
 	    float g = texelFetch(u_g, fc, 0).r;
@@ -406,7 +414,7 @@ function ShadamaFactory(threeRenderer, optDimension) {
     }
 
     function renderPatchProgram() {
-	return makePrimitive("renderPatch", ["mvpMatrix", "u_resolution", "u_r", "u_g", "u_b", "u_a"], patchVAO);
+	return makePrimitive("renderPatch", ["mvpMatrix", "u_resolution", "v_resolution", "v_step", "u_r", "u_g", "u_b", "u_a"], patchVAO);
     }
 
     function createShader(id, source) {
@@ -1612,9 +1620,11 @@ function ShadamaFactory(threeRenderer, optDimension) {
 	    gl.uniform1i(prog.uniLocations["u_a"], 3);
 
 	    gl.uniformMatrix4fv(uniLocations["mvpMatrix"], false, mvpMatrix.elements);
-	    gl.uniform3f(prog.uniLocations["u_resolution"], FW, FH, FW); // TODO
+	    gl.uniform3i(prog.uniLocations["u_resolution"], FW, FH, FW); // TODO
+	    gl.uniform3i(prog.uniLocations["v_resolution"], VW/VS, VH/VS, VD/VS); // TODO
+	    gl.uniform1i(prog.uniLocations["v_step"], VS);
 
-	    gl.drawArrays(gl.TRIANGLES, 0, 6);
+	    gl.drawArrays(gl.POINTS, 0, VTW * VTH);
 	    gl.flush();
 	    state.setBlending(THREE.NoBlending);
 
@@ -3752,24 +3762,46 @@ breed Turtle (x, y, z, dx, dy, dz, r, g, b, a)
 patch V(r, g, b, a)
 
 def set(voxel) {
-  voxel.r = 0.0;
-  voxel.g = 1.0;
-  voxel.b = 1.0;
-  voxel.a = 1.0;
+  voxel.r = this.x / 512;
+  voxel.g = this.y / 512;
+  voxel.b = this.z / 512;
+  voxel.a = 0.5;
 }
 
 def get(voxel) {
-  this.b = voxel.r;
-  this.a = voxel.g;
+  this.r = voxel.r;
+  this.g = voxel.g;
+  this.b = voxel.b;
+  this.a = voxel.a;
+}
+
+def get2(voxel) {
+  this.dx = voxel.r;
+  this.dy = voxel.g;
+  this.dz = voxel.b;
+}
+
+def move() {
+  this.x = this.x + this.dx;
+  this.y = this.y + this.dy;
+  this.z = this.z + this.dz;
 }
 
 static setup() {
-  Turtle.fillSpace("x", "z", 512, 512);
+  Turtle.setCount(1000);
+  Turtle.fillRandom("x", 0, 512);
+  Turtle.fillRandom("y", 0, 512);
+  Turtle.fillRandom("z", 0, 512);
   Turtle.set(V);
   Turtle.get(V);
-  V.render();
+  Turtle.get2(V);
+  Turtle.render();
 }
 
+static loop() {
+  Turtle.move();
+  V.render();
+}
 `;
     }
 
