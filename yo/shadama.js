@@ -53,6 +53,9 @@ function ShadamaFactory(threeRenderer) {
     var framebufferF;
     var framebufferR;
     var framebufferD;  // for three js u8rgba texture
+
+    var readFramebufferT;
+    var readFramebufferR;
     
     var editor = null;
     var editorType = null;
@@ -61,23 +64,34 @@ function ShadamaFactory(threeRenderer) {
     var shaders = {
 	"copy.vert":
 	`#version 300 es
-	layout (location = 0) in vec2 a_position;
+	layout (location = 0) in vec2 a_index;
+        uniform vec2 u_textureSize;
+	uniform sampler2D u_value;
+
+	out float v_value;
 
 	void main(void) {
-	    gl_Position = vec4(a_position, 0.0, 1.0);
+	    vec2 zeroToOne = a_index / u_textureSize;
+	    vec2 clipPos = zeroToOne * 2.0 - 1.0;  // (-1.0-1.0, -1.0-1.0)
+
+	    gl_Position = vec4(clipPos, 0.0, 1.0);
+
+	    gl_PointSize = 1.0;
+	    v_value = texelFetch(u_value, ivec2(a_index), 0).r;
 	}`,
+
 	"copy.frag":
 	`#version 300 es
 	precision highp float;
 
-	uniform sampler2D u_value;
+	in float v_value;
 
 	out float fragColor;
 
 	void main(void) {
-	    ivec2 fc = ivec2(gl_FragCoord.s, gl_FragCoord.t);
-	    fragColor = texelFetch(u_value, fc, 0).r;
+	    fragColor = v_value;
 	}`,
+
 	"drawBreed.vert":
 	`#version 300 es
 	layout (location = 0) in vec2 a_index;
@@ -125,106 +139,71 @@ function ShadamaFactory(threeRenderer) {
 
 	"drawPatch.vert":
 	`#version 300 es
-	layout (location = 0) in vec2 a_position;
-
-	void main(void) {
-	    gl_Position = vec4(a_position, 0.0, 1.0);
-	}`,
-
-	"drawPatch.frag":
-	`#version 300 es
-	precision highp float;
+	layout (location = 0) in vec2 a_index;
+        uniform vec2 u_resolution;
 
 	uniform sampler2D u_r;
 	uniform sampler2D u_g;
 	uniform sampler2D u_b;
 	uniform sampler2D u_a;
 
-	out vec4 fragColor;
+	out vec4 v_color;
 
 	void main(void) {
-	    ivec2 fc = ivec2(gl_FragCoord.s, gl_FragCoord.t);
+	    vec2 zeroToOne = a_index / u_resolution;
+	    vec2 clipPos = zeroToOne * 2.0 - 1.0;  // (-1.0-1.0, -1.0-1.0)
+	    gl_Position = vec4(clipPos, 0, 1.0);
+	    gl_PointSize = 1.0;
+
+	    ivec2 fc = ivec2(a_index);
+
 	    float r = texelFetch(u_r, fc, 0).r;
 	    float g = texelFetch(u_g, fc, 0).r;
 	    float b = texelFetch(u_b, fc, 0).r;
 	    float a = texelFetch(u_a, fc, 0).r;
-	    fragColor = vec4(r, g, b, a);
+	    v_color = vec4(r, g, b, a);
 	}`,
 
-	"diffusePatch.vert":
-	`#version 300 es
-	layout (location = 0) in vec2 a_position;
-
-	void main(void) {
-	    gl_Position = vec4(a_position, 0.0, 1.0);
-	}`,
-
-	"diffusePatch.frag":
+	"drawPatch.frag":
 	`#version 300 es
 	precision highp float;
-	uniform sampler2D u_value;
 
-	const float weight[9] = float[9](
-	    0.077847, 0.123317, 0.077847,
-	    0.123317, 0.195346, 0.123317,
-	    0.077847, 0.123317, 0.077847
-	);
-
-	out float fragColor;
-
-	void main(void) {
-	    ivec2 fc = ivec2(gl_FragCoord.s, gl_FragCoord.t);
-	    float v;
-	    v = texelFetch(u_value, fc + ivec2(-1, -1), 0).r * weight[0];
-	    v += texelFetch(u_value, fc + ivec2(-1,  0), 0).r * weight[1];
-	    v += texelFetch(u_value, fc + ivec2(-1,  1), 0).r * weight[2];
-	    v += texelFetch(u_value, fc + ivec2( 0, -1), 0).r * weight[3];
-	    v += texelFetch(u_value, fc + ivec2( 0,  0), 0).r * weight[4];
-	    v += texelFetch(u_value, fc + ivec2( 0,  1), 0).r * weight[5];
-	    v += texelFetch(u_value, fc + ivec2( 1, -1), 0).r * weight[6];
-	    v += texelFetch(u_value, fc + ivec2( 1,  0), 0).r * weight[7];
-	    v += texelFetch(u_value, fc + ivec2( 1,  1), 0).r * weight[8];
-	    v = v <= (1.0/256.0) ? 0.0 : v;
-	    fragColor = v;
-	}`,
-
-	"debugPatch.vert":
-	`#version 300 es
-	layout (location = 0) in vec2 a_position;
-
-	void main(void) {
-	    gl_Position = vec4(a_position, 0.0, 1.0);
-	}`,
-
-	"debugPatch.frag":
-	`#version 300 es
-	precision highp float;
-	uniform sampler2D u_value;
-
+	in vec4 v_color;
 	out vec4 fragColor;
 
 	void main(void) {
-	    ivec2 fc = ivec2(gl_FragCoord.s, gl_FragCoord.t);
-	    fragColor = texelFetch(u_value, fc, 0);
+	    fragColor = v_color;
 	}`,
-	"debugPatch2.vert":
+
+	"debug.vert":
 	`#version 300 es
-	layout (location = 0) in vec2 a_position;
+	layout (location = 0) in vec2 a_index;
+        uniform vec2 u_textureSize;
+	uniform sampler2D u_value;
+
+	out vec4 v_color;
 
 	void main(void) {
-	    gl_Position = vec4(a_position, 0.0, 1.0);
+	    vec2 zeroToOne = a_index / u_textureSize;
+	    vec2 clipPos = zeroToOne * 2.0 - 1.0;  // (-1.0-1.0, -1.0-1.0)
+	    gl_Position = vec4(clipPos, 0, 1.0);
+	    gl_PointSize = 1.0;
+
+	    ivec2 fc = ivec2(a_index);
+	    v_color = texelFetch(u_value, fc, 0);
 	}`,
 
-	"debugPatch2.frag":
+	"debug.frag":
 	`#version 300 es
 	precision highp float;
 
+	in vec4 v_color;
 	out vec4 fragColor;
 
 	void main(void) {
-	    ivec2 fc = ivec2(gl_FragCoord.s, gl_FragCoord.t);
-	    fragColor = vec4(gl_FragCoord.s / 2.0, gl_FragCoord.t / 512.0, 0, 1.0);
+	    fragColor = v_color;
 	}`,
+
 	"renderBreed.vert":
 	`#version 300 es
 	layout (location = 0) in vec2 a_index;
@@ -275,7 +254,7 @@ function ShadamaFactory(threeRenderer) {
 
 	"renderPatch.vert":
 	`#version 300 es
-	layout (location = 0) in vec2 a_position;
+	layout (location = 0) in vec2 a_index;
 	uniform mat4 mvpMatrix;
 	uniform vec3 u_resolution;
 
@@ -287,7 +266,7 @@ function ShadamaFactory(threeRenderer) {
 	out vec4 v_color;
 
 	void main(void) {
-	    ivec2 fc = ivec2(a_position * u_resolution.xy);
+	    ivec2 fc = ivec2(a_index);
 	    // the framebuffer will be 512^512, which is square of cube root of 64 * 64 * 64
             // fc varies over this.
 
@@ -352,26 +331,35 @@ function ShadamaFactory(threeRenderer) {
     }
 
     function initPatchVAO() {
-	var rect = [
-                -1.0,  1.0,
-                 1.0,  1.0,
-                -1.0, -1.0,
-                 1.0,  1.0,
-                 1.0, -1.0,
-                -1.0, -1.0,
-        ];
+	var w;
+	var h;
+        if (dimension == 2) {
+	    var w = FW;
+	    var h = FH;
+	} else {
+	    var w = VTW;
+	    var h = VTH;
+	}
+	var allIndices = new Array(w * h * 2);
+	for (var j = 0; j < h; j++) {
+            for (var i = 0; i < w; i++) {
+		var ind = ((j * w) + i) * 2;
+		allIndices[ind + 0] = i;
+		allIndices[ind + 1] = j;
+            }
+	}
 
 	patchVAO = gl.createVertexArray();
 	gl.bindVertexArray(patchVAO);
 
 	var positionBuffer = gl.createBuffer();
 	var attrLocations = new Array(1);
-	attrLocations[0] = 0; //gl.getAttribLocation(prog, 'a_position'); ; Now a_position has layout location spec
+	attrLocations[0] = 0 // gl.getAttribLocation(prog, 'a_index'); Now a_index has layout location spec
 
 	var attrStrides = new Array(1);
 	attrStrides[0] = 2;
 
-	setBufferAttribute([positionBuffer], [rect], attrLocations, attrStrides);
+	setBufferAttribute([positionBuffer], [allIndices], attrLocations, attrStrides);
 	gl.bindVertexArray(null);
     }
 
@@ -389,28 +377,28 @@ function ShadamaFactory(threeRenderer) {
 	return {program: prog, uniLocations: uniLocations, vao: vao};
     }
 
+    function copyBreedProgram() {
+	return makePrimitive("copy", ["u_textureSize", "u_value"], breedVAO);
+    }
+
+    function copyPatchProgram() {
+	return makePrimitive("copy", ["u_textureSize", "u_value"], patchVAO);
+    }
+
     function drawBreedProgram() {
 	return makePrimitive("drawBreed", ["u_resolution", "u_particleLength", "u_x", "u_y", "u_r", "u_g", "u_b", "u_a"], breedVAO);
     }
 
     function drawPatchProgram() {
-	return makePrimitive("drawPatch", ["u_a", "u_r", "u_g", "u_b"], patchVAO);
+	return makePrimitive("drawPatch", ["u_resolution", "u_a", "u_r", "u_g", "u_b"], patchVAO);
+    }
+
+    function debugBreedProgram() {
+	return makePrimitive("debug", ["u_textureSize", "u_value"], breedVAO);
     }
 
     function debugPatchProgram() {
-	return makePrimitive("debugPatch", ["u_value"], patchVAO);
-    }
-
-    function diffusePatchProgram() {
-	return makePrimitive("diffusePatch", ["u_value"], patchVAO);
-    }
-
-    function copyProgram() {
-	return makePrimitive("copy", ["u_value"], patchVAO);
-    }
-
-    function debugPatch2Program() {
-	return makePrimitive("debugPatch2", [], patchVAO);
+	return makePrimitive("debug", ["u_textureSize", "u_value"], patchVAO);
     }
 
     function renderBreedProgram() {
@@ -574,7 +562,7 @@ function ShadamaFactory(threeRenderer) {
     }
 
     function textureCopy(obj, src, dst) {
-	var prog = programs["copy"];
+	var prog;
 	var width;
 	var height;
 	var buffer;
@@ -582,14 +570,18 @@ function ShadamaFactory(threeRenderer) {
             width = T;
             height = T;
             buffer = framebufferT;
+	    prog = programs["copyBreed"];
+
 	} else if (obj.constructor === Patch) {
             width = FW;
             height = FH;
             buffer = framebufferR;
+	    prog = programs["copyPatch"];
 	} else {
             width = VTW;
             height = VTH;
             buffer = framebufferR;
+	    prog = programs["copyPatch"];
 	}
 
 	setTargetBuffer(buffer, dst);
@@ -602,16 +594,51 @@ function ShadamaFactory(threeRenderer) {
 
 	state.activeTexture(gl.TEXTURE0);
 	state.bindTexture(gl.TEXTURE_2D, src);
-
 	gl.uniform1i(prog.uniLocations["u_value"], 0);
 
-	gl.drawArrays(gl.TRIANGLES, 0, 6);
+	gl.uniform2f(prog.uniLocations["u_textureSize"], width, height);
 
-	gl.flush();
+	gl.drawArrays(gl.POINTS, 0, width * height);
+
 	setTargetBuffer(null, null);
 
 	gl.bindVertexArray(null);
     }
+
+    // function textureCopy(obj, src, dst) {
+    // 	var w;
+    // 	var h;
+    // 	var readbuffer;
+    // 	var writebuffer;
+
+    // 	if (obj.constructor === Breed) {
+    //         w = T;
+    //         h = T;
+    // 	    readbuffer = readFramebufferT;
+    //         writebuffer = framebufferT;
+    // 	} else if (obj.constructor === Patch) {
+    // 	    if (dimension == 2) {
+    // 		w = FW;
+    // 		h = FH;
+    // 		readbuffer = readFramebufferR;
+    // 		writebuffer = framebufferR;
+    // 	    } else {
+    // 		w = VTW;
+    // 		h = VTH;
+    // 		readbuffer = readFramebufferR; // well?
+    // 		writebuffer = framebufferR;  // well?
+    // 	    }
+    // 	}
+
+    // 	renderer.setRenderTarget(readbuffer, gl.READ_FRAMEBUFFER);
+    // 	gl.framebufferTexture2D(gl.READ_FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, src, 0);
+
+    // 	renderer.setRenderTarget(writebuffer, gl.DRAW_FRAMEBUFFER);
+    // 	gl.framebufferTexture2D(gl.DRAW_FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, dst, 0);
+
+    // 	gl.blitFramebuffer(0, 0, w, h, 0, 0, w, h, gl.COLOR_BUFFER_BIT, gl.NEAREST);
+    // 	setTargetBuffer(null, null);
+    // }
 
     function updateOwnVariable(obj, name, optData) {
 	var width;
@@ -639,7 +666,13 @@ function ShadamaFactory(threeRenderer) {
 
 	obj.own[name] = name;
 	obj[name] = createTexture(ary, gl.R32F, width, height);
-	obj["new"+name] = createTexture(ary, gl.R32F, width, height);
+
+	obj["new"+name] = createTexture(new Float32Array(width * height), gl.R32F, width, height);
+
+	textureCopy(obj, obj[name], obj["new"+name]);
+
+
+//	obj["new"+name] = createTexture(ary, gl.R32F, width, height);
     }
 
     function removeOwnVariable(obj, name) {
@@ -840,7 +873,6 @@ function ShadamaFactory(threeRenderer) {
 	return (function () {
             var debugName = name;
 	    if (debugName === "get") {
-		debugger;
 	    }
             var prog = createProgram(createShader(name + ".vert", vert),
                                      createShader(name + ".frag", frag));
@@ -877,7 +909,6 @@ function ShadamaFactory(threeRenderer) {
 		// ins: [[varName, fieldName]]
 		// params: {shortName: value}
 		if (debugName === "get") {
-		debugger;
 		}
 		var object = objects["this"];
 
@@ -992,6 +1023,9 @@ function ShadamaFactory(threeRenderer) {
 	framebufferD = makeFramebuffer(gl.UNSIGNED_BYTE, FW, FH);
 	framebufferD0 = makeFramebuffer(gl.FLOAT, T, T);
 	framebufferD1 = makeFramebuffer(gl.FLOAT, FW, FH);
+
+	readFramebufferT = makeFramebuffer(gl.R32F, T, T);
+	readFramebufferR = makeFramebuffer(gl.R32F, FW, FH);
     }
 
     Shadama.prototype.evalShadama = function(source) {
@@ -1100,33 +1134,6 @@ function ShadamaFactory(threeRenderer) {
 	return img;
     }
 
-    Shadama.prototype.debugPatch2 = function() {
-	var prog = programs["debugPatch2"];
-	var t = webglTexture();
-
-	if (t) {
-	    setTargetBuffer(framebufferD, t);
-	} else {
-	    setTargetBuffer(null, null);
-	}
-
-	state.useProgram(prog.program);
-	gl.bindVertexArray(prog.vao);
-	state.setCullFace( THREE.CullFaceNone );
-
-	state.setBlending(THREE.NormalBlending);
-
-	gl.drawArrays(gl.TRIANGLES, 0, 6);
-	gl.flush();
-	state.setBlending(THREE.NoBlending);
-
-	if (!t) {
-	    setTargetBuffer(null, null);
-	}
-
-	gl.bindVertexArray(null);
-    }
-
     Shadama.prototype.debugDisplay = function(objName, name) {
 
 	var object = this.env[objName];
@@ -1142,7 +1149,8 @@ function ShadamaFactory(threeRenderer) {
             debugCanvas1.width = width;
             debugCanvas1.height = height;
 	}
-	var prog = programs["debugPatch"];
+
+	var prog = programs[forBreed ? "debugBreed" : "debugPatch"];
 
 	if (forBreed) {
             setTargetBuffer(framebufferD0, debugTexture0);
@@ -1159,13 +1167,15 @@ function ShadamaFactory(threeRenderer) {
 	state.bindTexture(gl.TEXTURE_2D, tex);
 	gl.uniform1i(prog.uniLocations["u_value"], 0);
 
+	gl.uniform2f(prog.uniLocations["u_textureSize"], width, height);
+
 	renderer.setClearColor(new THREE.Color(0x000000));
 	renderer.clearColor();
 
 	state.setCullFace(THREE.CullFaceNone);
 	state.setBlending(THREE.NoBlending);
 
-	gl.drawArrays(gl.TRIANGLES, 0, 6);
+	gl.drawArrays(gl.POINTS, 0, width * height);
 	gl.flush();
 
 	debugArray = new Float32Array(width * height * 4);
@@ -1552,8 +1562,9 @@ function ShadamaFactory(threeRenderer) {
 	    state.bindTexture(gl.TEXTURE_2D, this.a);
 	    gl.uniform1i(prog.uniLocations["u_a"], 3);
 
+	    gl.uniform2f(prog.uniLocations["u_resolution"], FW, FH);
 
-	    gl.drawArrays(gl.TRIANGLES, 0, 6);
+	    gl.drawPoints(gl.POINTS, 0, FW * FH);
 	    gl.flush();
 	    state.setBlending(THREE.NoBlending);
 
@@ -1616,34 +1627,6 @@ function ShadamaFactory(threeRenderer) {
 	    gl.bindVertexArray(null);
 	}
 
-	diffuse(name) {
-	    var prog = programs["diffusePatch"];
-
-	    var target = this["new"+name];
-	    var source = this[name];
-
-	    setTargetBuffer(framebufferR, target);
-
-	    state.useProgram(prog.program);
-	    gl.bindVertexArray(prog.vao);
-
-	    state.setCullFace(THREE.CullFaceNone);
-	    state.setBlending(THREE.NoBlending);
-
-	    state.activeTexture(gl.TEXTURE0);
-	    state.bindTexture(gl.TEXTURE_2D, source);
-	    gl.uniform1i(prog.uniLocations["u_value"], 0);
-
-	    gl.drawArrays(gl.TRIANGLES, 0, 6);
-
-	    gl.flush();
-	    setTargetBuffer(null, null);
-
-	    this["new"+name] = source;
-	    this[name] = target;
-
-	    gl.bindVertexArray(null);
-	};
     }
 
     Shadama.prototype.cleanUpEditorState = function() {
@@ -3789,9 +3772,6 @@ static setup() {
   V.render();
 }
 
-static loop() {
-  V.render();
-}
 `;
     }
 
@@ -3886,8 +3866,7 @@ static setup() {
   Filler.fillSpace("x", "y", 512, 512);
   Turtle.setCount(300000);
   Turtle.fillRandom("x", 0, 512);
-  Turtle.fillRandom("y", 256, 512);
-  Turtle.fillRandomDir("dx", "dy");
+  Turtle.fillRandom("y", 256,   Turtle.fillRandomDir("dx", "dy");
   Turtle.setColor();
 }
 
@@ -3929,12 +3908,12 @@ static loop() {
     initPatchVAO();
     initCompiler();
 
+    programs["copyBreed"] = copyBreedProgram();
+    programs["copyPatch"] = copyPatchProgram();
     programs["drawBreed"] = drawBreedProgram();
     programs["drawPatch"] = drawPatchProgram();
     programs["debugPatch"] = debugPatchProgram();
-    programs["debugPatch2"] = debugPatch2Program();
-    programs["diffusePatch"] = diffusePatchProgram();
-    programs["copy"] = copyProgram();
+    programs["debugBreed"] = debugBreedProgram();
     programs["renderBreed"] = renderBreedProgram();
     programs["renderPatch"] = renderPatchProgram();
 
@@ -3949,6 +3928,7 @@ static loop() {
     }
     return shadama;
 }
+
 //export {
 //   ShadamaFactory
 //}
