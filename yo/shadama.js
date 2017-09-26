@@ -1,4 +1,4 @@
-function ShadamaFactory(threeRenderer) {
+function ShadamaFactory(threeRenderer, optDimension) {
     var TEXTURE_SIZE = 1024;
     var FIELD_WIDTH = 512;
     var FIELD_HEIGHT = 512;
@@ -23,7 +23,7 @@ function ShadamaFactory(threeRenderer) {
     var VTW = VOXEL_TEXTURE_WIDTH;
     var VTH = VOXEL_TEXTURE_HEIGHT;
 
-    var dimension = 3; // 2 | 3;
+    var dimension = optDimension || 3; // 2 | 3;
 
     // need to change this so that you can have different Shadma instances with different sizes
 
@@ -561,84 +561,86 @@ function ShadamaFactory(threeRenderer) {
 	}
     }
 
-    function textureCopy(obj, src, dst) {
-	var prog;
-	var width;
-	var height;
-	var buffer;
-	if (obj.constructor === Breed) {
-            width = T;
-            height = T;
-            buffer = framebufferT;
-	    prog = programs["copyBreed"];
-
-	} else if (obj.constructor === Patch) {
-            width = FW;
-            height = FH;
-            buffer = framebufferR;
-	    prog = programs["copyPatch"];
-	} else {
-            width = VTW;
-            height = VTH;
-            buffer = framebufferR;
-	    prog = programs["copyPatch"];
-	}
-
-	setTargetBuffer(buffer, dst);
-
-	state.useProgram(prog.program);
-	gl.bindVertexArray(prog.vao);
-
-	state.setCullFace(THREE.CullFaceNone);
-	state.setBlending(THREE.NoBlending);
-
-	state.activeTexture(gl.TEXTURE0);
-	state.bindTexture(gl.TEXTURE_2D, src);
-	gl.uniform1i(prog.uniLocations["u_value"], 0);
-
-	gl.uniform2f(prog.uniLocations["u_textureSize"], width, height);
-
-	gl.drawArrays(gl.POINTS, 0, width * height);
-
-	setTargetBuffer(null, null);
-
-	gl.bindVertexArray(null);
-    }
-
     // function textureCopy(obj, src, dst) {
-    // 	var w;
-    // 	var h;
-    // 	var readbuffer;
-    // 	var writebuffer;
-
+    // 	var prog;
+    // 	var width;
+    // 	var height;
+    // 	var buffer;
     // 	if (obj.constructor === Breed) {
-    //         w = T;
-    //         h = T;
-    // 	    readbuffer = readFramebufferT;
-    //         writebuffer = framebufferT;
+    //         width = T;
+    //         height = T;
+    //         buffer = framebufferT;
+    // 	    prog = programs["copyBreed"];
+
     // 	} else if (obj.constructor === Patch) {
-    // 	    if (dimension == 2) {
-    // 		w = FW;
-    // 		h = FH;
-    // 		readbuffer = readFramebufferR;
-    // 		writebuffer = framebufferR;
-    // 	    } else {
-    // 		w = VTW;
-    // 		h = VTH;
-    // 		readbuffer = readFramebufferR; // well?
-    // 		writebuffer = framebufferR;  // well?
-    // 	    }
+    //         width = FW;
+    //         height = FH;
+    //         buffer = framebufferR;
+    // 	    prog = programs["copyPatch"];
+    // 	} else {
+    //         width = VTW;
+    //         height = VTH;
+    //         buffer = framebufferR;
+    // 	    prog = programs["copyPatch"];
     // 	}
 
-    // 	renderer.setRenderTarget(readbuffer, gl.READ_FRAMEBUFFER);
-    // 	gl.framebufferTexture2D(gl.READ_FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, src, 0);
+    // 	setTargetBuffer(buffer, dst);
 
-    // 	renderer.setRenderTarget(writebuffer, gl.DRAW_FRAMEBUFFER);
-    // 	gl.framebufferTexture2D(gl.DRAW_FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, dst, 0);
+    // 	state.useProgram(prog.program);
+    // 	gl.bindVertexArray(prog.vao);
 
-    // 	gl.blitFramebuffer(0, 0, w, h, 0, 0, w, h, gl.COLOR_BUFFER_BIT, gl.NEAREST);
+    // 	state.setCullFace(THREE.CullFaceNone);
+    // 	state.setBlending(THREE.NoBlending);
+
+    // 	state.activeTexture(gl.TEXTURE0);
+    // 	state.bindTexture(gl.TEXTURE_2D, src);
+    // 	gl.uniform1i(prog.uniLocations["u_value"], 0);
+
+    // 	gl.uniform2f(prog.uniLocations["u_textureSize"], width, height);
+
+    // 	gl.drawArrays(gl.POINTS, 0, width * height);
+
     // 	setTargetBuffer(null, null);
+
+    // 	gl.bindVertexArray(null);
     // }
+
+    function textureCopy(obj, src, dst) {
+        return;
+
+    	// var w;
+    	// var h;
+    	// var readbuffer;
+    	// var writebuffer;
+
+    	// if (obj.constructor === Breed) {
+        //     w = T;
+        //     h = T;
+    	//     readbuffer = readFramebufferT;
+        //     writebuffer = framebufferT;
+    	// } else if (obj.constructor === Patch) {
+    	//     if (dimension == 2) {
+    	// 	w = FW;
+    	// 	h = FH;
+    	// 	readbuffer = readFramebufferR;
+    	// 	writebuffer = framebufferR;
+    	//     } else {
+    	// 	w = VTW;
+    	// 	h = VTH;
+    	// 	readbuffer = readFramebufferR; // well?
+    	// 	writebuffer = framebufferR;  // well?
+    	//     }
+    	// }
+
+    	// renderer.setRenderTarget(readbuffer, gl.READ_FRAMEBUFFER);
+    	// gl.framebufferTexture2D(gl.READ_FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, src, 0);
+
+    	// renderer.setRenderTarget(writebuffer, gl.DRAW_FRAMEBUFFER);
+    	// gl.framebufferTexture2D(gl.DRAW_FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, dst, 0);
+
+    	// gl.blitFramebuffer(0, 0, w, h, 0, 0, w, h, gl.COLOR_BUFFER_BIT, gl.NEAREST);
+    	// setTargetBuffer(null, null);
+    }
 
     function updateOwnVariable(obj, name, optData) {
 	var width;
@@ -668,11 +670,7 @@ function ShadamaFactory(threeRenderer) {
 	obj[name] = createTexture(ary, gl.R32F, width, height);
 
 	obj["new"+name] = createTexture(new Float32Array(width * height), gl.R32F, width, height);
-
-	textureCopy(obj, obj[name], obj["new"+name]);
-
-
-//	obj["new"+name] = createTexture(ary, gl.R32F, width, height);
+	obj["new"+name] = createTexture(ary, gl.R32F, width, height);
     }
 
     function removeOwnVariable(obj, name) {
@@ -1564,7 +1562,7 @@ function ShadamaFactory(threeRenderer) {
 
 	    gl.uniform2f(prog.uniLocations["u_resolution"], FW, FH);
 
-	    gl.drawPoints(gl.POINTS, 0, FW * FH);
+	    gl.drawArrays(gl.POINTS, 0, FW * FH);
 	    gl.flush();
 	    state.setBlending(THREE.NoBlending);
 
@@ -3866,7 +3864,8 @@ static setup() {
   Filler.fillSpace("x", "y", 512, 512);
   Turtle.setCount(300000);
   Turtle.fillRandom("x", 0, 512);
-  Turtle.fillRandom("y", 256,   Turtle.fillRandomDir("dx", "dy");
+  Turtle.fillRandom("y", 256, 512);
+  Turtle.fillRandomDir("dx", "dy");
   Turtle.setColor();
 }
 
