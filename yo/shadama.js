@@ -23,6 +23,8 @@ function ShadamaFactory(threeRenderer, optDimension) {
     var VTW = VOXEL_TEXTURE_WIDTH;
     var VTH = VOXEL_TEXTURE_HEIGHT;
 
+    var N = "_new_";
+
     var dimension = optDimension || 3; // 2 | 3;
 
     // need to change things around here so that you can have different Shadma instances with different sizes
@@ -45,18 +47,15 @@ function ShadamaFactory(threeRenderer, optDimension) {
     var debugArray1;
     var debugArray2;
 
-    var debugTexture0;
-    var debugTexture1;
-    var framebufferD0;  // for debugging u8rgba texture
-    var framebufferD1;  // for debugging u8rgba texture
+    var debugTextureBreed;
+    var debugTexturePatch;
+    var framebufferDBreed;  // for debugging u8rgba texture
+    var framebufferDPatch;  // for debugging u8rgba texture
 
-    var framebufferT;
-    var framebufferF;
-    var framebufferR;
-    var framebufferD;  // for three js u8rgba texture
-
-    var readFramebufferT;
-    var readFramebufferR;
+    var framebufferBreed;
+    var framebufferPatch;
+    var framebufferDiffuse;
+    var framebufferU8RGBA;  // for three js u8rgba texture
 
     var editor = null;
     var editorType = null;
@@ -79,8 +78,8 @@ function ShadamaFactory(threeRenderer, optDimension) {
     var runTests;
     var showAllEnv;
     var degaussdemo;
-    var fudge = ""; //+ivec2(0, 0)";
-    var fudgeValue = [0, 0];
+
+    var pendingLoads = [[], null]; // = [[], callback];
 
     var shaders = {
         "drawBreed.vert":
@@ -89,7 +88,7 @@ function ShadamaFactory(threeRenderer, optDimension) {
         layout (location = 1) in vec2 b_index;
 
         uniform vec2 u_resolution;
-	uniform ivec2 u_fudge;
+        uniform vec2 u_half;
 
         uniform sampler2D u_x;
         uniform sampler2D u_y;
@@ -102,12 +101,12 @@ function ShadamaFactory(threeRenderer, optDimension) {
         out vec4 v_color;
 
         void main(void) {
-	    ivec2 fc = ivec2(a_index) + u_fudge;
+            ivec2 fc = ivec2(a_index);
             float x = texelFetch(u_x, fc, 0).r;
             float y = texelFetch(u_y, fc, 0).r;
             vec2 dPos = vec2(x, y);   // (0-resolution, 0-resolution)
             vec2 normPos = dPos / u_resolution;  // (0-1.0, 0-1.0)
-            vec2 clipPos = normPos * 2.0 - 1.0;  // (-1.0-1.0, -1.0-1.0)
+            vec2 clipPos = (normPos + u_half) * 2.0 - 1.0;  // (-1.0-1.0, -1.0-1.0)
             gl_Position = vec4(clipPos, 0, 1.0);
 
             float r = texelFetch(u_r, fc, 0).r;
@@ -135,7 +134,7 @@ function ShadamaFactory(threeRenderer, optDimension) {
         layout (location = 1) in vec2 b_index;
 
         uniform vec2 u_resolution;
-	uniform ivec2 u_fudge;
+        uniform vec2 u_half;
 
         uniform sampler2D u_r;
         uniform sampler2D u_g;
@@ -145,11 +144,11 @@ function ShadamaFactory(threeRenderer, optDimension) {
         out vec4 v_color;
 
         void main(void) {
-            vec2 clipPos = b_index * 2.0 - 1.0;  // (-1.0-1.0, -1.0-1.0)
+            vec2 clipPos = (b_index + u_half) * 2.0 - 1.0;  // (-1.0-1.0, -1.0-1.0)
             gl_Position = vec4(clipPos, 0, 1.0);
             gl_PointSize = 1.0;
 
-            ivec2 fc = ivec2(a_index) + u_fudge;
+            ivec2 fc = ivec2(a_index);
 
             float r = texelFetch(u_r, fc, 0).r;
             float g = texelFetch(u_g, fc, 0).r;
@@ -176,16 +175,16 @@ function ShadamaFactory(threeRenderer, optDimension) {
         layout (location = 1) in vec2 b_index;
 
         uniform sampler2D u_value;
-        uniform ivec2 u_fudge;
+        uniform vec2 u_half;
 
         out vec4 v_color;
 
         void main(void) {
-            vec2 clipPos = b_index * 2.0 - 1.0;  // (-1.0-1.0, -1.0-1.0)
+            vec2 clipPos = (b_index + u_half) * 2.0 - 1.0;  // (-1.0-1.0, -1.0-1.0)
             gl_Position = vec4(clipPos, 0, 1.0);
             gl_PointSize = 1.0;
 
-            ivec2 fc = ivec2(a_index) + u_fudge;
+            ivec2 fc = ivec2(a_index);
             v_color = texelFetch(u_value, fc, 0);
         }`,
 
@@ -207,7 +206,7 @@ function ShadamaFactory(threeRenderer, optDimension) {
 
         uniform mat4 mvpMatrix;
         uniform vec3 u_resolution;
-	uniform ivec2 u_fudge;
+        uniform vec3 u_half;
 
         uniform sampler2D u_x;
         uniform sampler2D u_y;
@@ -221,13 +220,13 @@ function ShadamaFactory(threeRenderer, optDimension) {
         out vec4 v_color;
 
         void main(void) {
-	    ivec2 fc = ivec2(a_index) + u_fudge;
+            ivec2 fc = ivec2(a_index);
             float x = texelFetch(u_x, fc, 0).r;
             float y = texelFetch(u_y, fc, 0).r;
             float z = texelFetch(u_z, fc, 0).r;
             vec3 dPos = vec3(x, y, z);
             vec3 normPos = dPos / u_resolution;
-            vec3 clipPos = (normPos * 2.0 - 1.0) * (u_resolution.x / 2.0);
+            vec3 clipPos = ((normPos + u_half) * 2.0 - 1.0) * (u_resolution.x / 2.0);
 
             gl_Position = mvpMatrix * vec4(clipPos, 1.0);
 
@@ -236,7 +235,7 @@ function ShadamaFactory(threeRenderer, optDimension) {
             float b = texelFetch(u_b, fc, 0).r;
             float a = texelFetch(u_a, fc, 0).r;
             v_color = vec4(r, g, b, a);
-            gl_PointSize = 1.0;
+            gl_PointSize = 1.0 * ( 512.0 / -gl_Position.z );
         }`,
 
         "renderBreed.frag":
@@ -261,7 +260,7 @@ function ShadamaFactory(threeRenderer, optDimension) {
         uniform vec3 u_resolution;
         uniform vec3 v_resolution;
         uniform int v_step;
-	uniform ivec2 u_fudge;
+        uniform vec3 u_half;
 
         uniform sampler2D u_r;
         uniform sampler2D u_g;
@@ -271,8 +270,8 @@ function ShadamaFactory(threeRenderer, optDimension) {
         out vec4 v_color;
 
         void main(void) {
-            ivec2 fc = ivec2(a_index) + u_fudge;
-	    ivec3 iv_resolution = ivec3(v_resolution);
+            ivec2 fc = ivec2(a_index);
+            ivec3 iv_resolution = ivec3(v_resolution);
             // the framebuffer will be 512^512, which is square of cube root of 64 * 64 * 64
             // fc varies over this.
 
@@ -290,10 +289,10 @@ function ShadamaFactory(threeRenderer, optDimension) {
 
             vec3 dPos = vec3(x, y, z);
             vec3 normPos = dPos / u_resolution;
-            vec3 clipPos = (normPos * 2.0 - 1.0) * (u_resolution.x / 2.0);
+            vec3 clipPos = ((normPos + u_half) * 2.0 - 1.0) * (u_resolution.x / 2.0);
 
             gl_Position = mvpMatrix * vec4(clipPos, 1.0);
-            gl_PointSize = 8.0;
+            gl_PointSize = 16.0 * ( 512.0 / -gl_Position.z );
 
             float r = texelFetch(u_r, fc, 0).r;
             float g = texelFetch(u_g, fc, 0).r;
@@ -314,6 +313,93 @@ function ShadamaFactory(threeRenderer, optDimension) {
 
         void main(void) {
             fragColor = v_color;
+        }`,
+
+        "diffusePatch.vert":
+        `#version 300 es
+        layout (location = 0) in vec2 a_index;
+        layout (location = 1) in vec2 b_index;
+
+        uniform vec2 u_half;
+        uniform sampler2D u_value;
+
+        out float v_value;
+
+        const float weight[9] = float[9](
+            0.077847, 0.123317, 0.077847,
+            0.123317, 0.195346, 0.123317,
+            0.077847, 0.123317, 0.077847
+        );
+
+        void main(void) {
+            vec2 clipPos = (b_index + u_half) * 2.0 - 1.0;  // (-1.0-1.0, -1.0-1.0)
+            gl_Position = vec4(clipPos, 0, 1.0);
+            gl_PointSize = 1.0;
+
+            ivec2 fc = ivec2(a_index);
+            float v = 0.0;
+            v += texelFetch(u_value, fc + ivec2(-1, -1), 0).r * weight[0];
+            v += texelFetch(u_value, fc + ivec2(-1,  0), 0).r * weight[1];
+            v += texelFetch(u_value, fc + ivec2(-1,  1), 0).r * weight[2];
+            v += texelFetch(u_value, fc + ivec2( 0, -1), 0).r * weight[3];
+            v += texelFetch(u_value, fc + ivec2( 0,  0), 0).r * weight[4];
+            v += texelFetch(u_value, fc + ivec2( 0,  1), 0).r * weight[5];
+            v += texelFetch(u_value, fc + ivec2( 1, -1), 0).r * weight[6];
+            v += texelFetch(u_value, fc + ivec2( 1,  0), 0).r * weight[7];
+            v += texelFetch(u_value, fc + ivec2( 1,  1), 0).r * weight[8];
+            v = v <= (1.0/256.0) ? 0.0 : v;
+            v_value = v;
+        }`,
+
+        "diffusePatch.frag":
+        `#version 300 es
+        precision highp float;
+        in float v_value;
+        layout (location = 0) out float fragColor;
+
+        void main(void) {
+            fragColor = v_value;
+        }`,
+
+        "increasePatch.vert":
+        `#version 300 es
+        precision highp float;
+
+        layout (location = 0) in vec2 a_index;
+        layout (location = 1) in vec2 b_index;
+
+        uniform vec2 u_resolution;
+        uniform vec2 u_half;
+
+        uniform sampler2D u_that_x;
+        uniform sampler2D u_that_y;
+
+        uniform bool u_use_vector;
+        uniform sampler2D u_texture;
+        uniform float u_value;
+
+        out float v_value;
+
+        void main() {
+
+            float _x = texelFetch(u_that_x, ivec2(a_index), 0).r;
+            float _y = texelFetch(u_that_y, ivec2(a_index), 0).r;
+            vec2 _pos = vec2(_x, _y);
+            vec2 oneToOne = ((_pos / u_resolution) + u_half) * 2.0 - 1.0;
+
+            gl_Position = vec4(oneToOne, 0.0, 1.0);
+            gl_PointSize = 1.0;
+
+            v_value = u_use_vector ? texelFetch(u_texture, ivec2(a_index), 0).r : u_value;
+        }`,
+
+        "increasePatch.frag":
+        `#version 300 es
+        precision highp float;
+        in float v_value;
+        layout (location = 0) out float fragColor;
+        void main() {
+            fragColor = v_value;
         }`,
     }
 
@@ -403,27 +489,35 @@ function ShadamaFactory(threeRenderer, optDimension) {
     }
 
     function drawBreedProgram() {
-        return makePrimitive("drawBreed", ["u_resolution", "u_fudge", "u_x", "u_y", "u_r", "u_g", "u_b", "u_a"], breedVAO);
+        return makePrimitive("drawBreed", ["u_resolution", "u_half", "u_x", "u_y", "u_r", "u_g", "u_b", "u_a"], breedVAO);
     }
 
     function drawPatchProgram() {
-        return makePrimitive("drawPatch", ["u_resolution", "u_fudge", "u_a", "u_r", "u_g", "u_b"], patchVAO);
+        return makePrimitive("drawPatch", ["u_resolution", "u_half", "u_a", "u_r", "u_g", "u_b"], patchVAO);
     }
 
     function debugBreedProgram() {
-        return makePrimitive("debug", ["u_value", "u_fudge"], breedVAO);
+        return makePrimitive("debug", ["u_value", "u_half"], breedVAO);
     }
 
     function debugPatchProgram() {
-        return makePrimitive("debug", ["u_value", "u_fudge"], patchVAO);
+        return makePrimitive("debug", ["u_value", "u_half"], patchVAO);
     }
 
     function renderBreedProgram() {
-        return makePrimitive("renderBreed", ["mvpMatrix", "u_resolution", "u_fudge", "u_x", "u_y", "u_z", "u_r", "u_g", "u_b", "u_a"], breedVAO);
+        return makePrimitive("renderBreed", ["mvpMatrix", "u_resolution", "u_half", "u_x", "u_y", "u_z", "u_r", "u_g", "u_b", "u_a"], breedVAO);
     }
 
     function renderPatchProgram() {
-        return makePrimitive("renderPatch", ["mvpMatrix", "u_resolution", "u_fudge", "v_resolution", "v_step", "u_r", "u_g", "u_b", "u_a"], patchVAO);
+        return makePrimitive("renderPatch", ["mvpMatrix", "u_resolution", "u_half", "v_resolution", "v_step", "u_r", "u_g", "u_b", "u_a"], patchVAO);
+    }
+
+    function diffusePatchProgram() {
+        return makePrimitive("diffusePatch", ["u_value", "u_half",], patchVAO);
+    }
+
+    function increasePatchProgram() {
+        return makePrimitive("increasePatch", ["u_resolution", "u_half", "u_that_x", "u_that_y", "u_use_vector", "u_texture", "u_value"], patchVAO);
     }
 
     function createShader(id, source) {
@@ -486,11 +580,11 @@ function ShadamaFactory(threeRenderer, optDimension) {
         gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, false);
         gl.pixelStorei(gl.UNPACK_COLORSPACE_CONVERSION_WEBGL, false);
 
-	gl.pixelStorei(gl.UNPACK_ROW_LENGTH, width);
-	gl.pixelStorei(gl.UNPACK_IMAGE_HEIGHT, height);
-	gl.pixelStorei(gl.UNPACK_SKIP_ROWS, 0);
-	gl.pixelStorei(gl.UNPACK_SKIP_PIXELS, 0);
-	gl.pixelStorei(gl.UNPACK_SKIP_IMAGES, 0);
+        gl.pixelStorei(gl.UNPACK_ROW_LENGTH, width);
+        gl.pixelStorei(gl.UNPACK_IMAGE_HEIGHT, height);
+        gl.pixelStorei(gl.UNPACK_SKIP_ROWS, 0);
+        gl.pixelStorei(gl.UNPACK_SKIP_PIXELS, 0);
+        gl.pixelStorei(gl.UNPACK_SKIP_IMAGES, 0);
 
         if (type == gl.UNSIGNED_BYTE) {
             gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, width, height, 0, gl.RGBA, type, data, 0);
@@ -606,6 +700,15 @@ function ShadamaFactory(threeRenderer, optDimension) {
         }
     }
 
+    function oneBlend() {
+        if (standalone) {
+            gl.enable(gl.BLEND);
+            gl.blendFunc(gl.ONE, gl.ONE);
+        } else {
+            state.setBlending(THREE.CustomBlending, THREE.AddEquation, THREE.OneFactor, THREE.OneFactor);
+        }
+    }
+
     function textureCopy(obj, src, dst) {
         return;
     }
@@ -630,13 +733,13 @@ function ShadamaFactory(threeRenderer, optDimension) {
         if (obj[name]) {
             gl.deleteTexture(obj[name]);
         }
-        if (obj["new"+name]) {
-            gl.deleteTexture(obj["new"+name]);
+        if (obj[N + name]) {
+            gl.deleteTexture(obj[N + name]);
         }
 
         obj.own[name] = name;
         obj[name] = createTexture(ary, gl.R32F, width, height);
-        obj["new"+name] = createTexture(ary, gl.R32F, width, height);
+        obj[N + name] = createTexture(ary, gl.R32F, width, height);
     }
 
     function removeOwnVariable(obj, name) {
@@ -645,9 +748,9 @@ function ShadamaFactory(threeRenderer, optDimension) {
             gl.deleteTexture(obj[name]);
             delete obj[name];
         }
-        if (obj["new"+name]) {
-            gl.deleteTexture(obj["new"+name]);
-            delete obj["new"+name];
+        if (obj[N + name]) {
+            gl.deleteTexture(obj[N  + name]);
+            delete obj[N + name];
         }
     }
 
@@ -677,7 +780,7 @@ function ShadamaFactory(threeRenderer, optDimension) {
                 updateOwnVariable(obj, fields[i]);
             }
             env[name] = obj;
-            return obj;
+            return true;
         }
 
         var oldOwn = obj.own;
@@ -691,7 +794,7 @@ function ShadamaFactory(threeRenderer, optDimension) {
             newOwn[k] = k;
         }
         if (stringify(newOwn) === stringify(oldOwn)) {
-            return; obj;
+            return false;
         }
 
         // other case: get things into toBeDeleted and toBeCreated, and toBeMoved
@@ -709,6 +812,7 @@ function ShadamaFactory(threeRenderer, optDimension) {
 
         toBeCreated.forEach((k) => updateOwnVariable(obj, k));
         toBeDeleted.forEach((k) => removeOwnVariable(obj, k));
+        return true;
     }
 
     function programFromTable(table, vert, frag, name) {
@@ -751,11 +855,11 @@ function ShadamaFactory(threeRenderer, optDimension) {
             }
                 var object = objects["this"];
 
-                var targets = outs.map(function(pair) {return objects[pair[0]]["new" + pair[1]]});
+                var targets = outs.map(function(pair) {return objects[pair[0]][N + pair[1]]});
                 if (forBreed) {
-                    setTargetBuffers(framebufferT, targets);
+                    setTargetBuffers(framebufferBreed, targets);
                 } else {
-                    setTargetBuffers(framebufferR, targets);
+                    setTargetBuffers(framebufferPatch, targets);
                 }
 
                 state.useProgram(prog);
@@ -768,7 +872,7 @@ function ShadamaFactory(threeRenderer, optDimension) {
                 }
 
                 gl.uniform2f(uniLocations["u_resolution"], FW, FH);
-                gl.uniform1f(uniLocations["u_particleLength"], T);
+                gl.uniform2f(uniLocations["u_half"], 0.5/viewportW, 0.5/viewportH);
 
                 var offset = 0;
                 if (!forBreed || hasPatchInput) {
@@ -805,10 +909,6 @@ function ShadamaFactory(threeRenderer, optDimension) {
                     }
                 }
 
-                //            if (forBreed) {
-                //                gl.clearColor(0.0, 0.0, 0.0, 0.0);
-                //                gl.clear(gl.COLOR_BUFFER_BIT);
-                //            }
                 gl.drawArrays(gl.POINTS, 0, object.count);
                 gl.flush();
                 setTargetBuffers(null, null);
@@ -817,8 +917,8 @@ function ShadamaFactory(threeRenderer, optDimension) {
                     var o = objects[pair[0]];
                     var name = pair[1];
                     var tmp = o[name];
-                    o[name] = o["new"+name];
-                    o["new"+name] = tmp;
+                    o[name] = o[N + name];
+                    o[N + name] = tmp;
                 }
                 gl.bindVertexArray(null);
             }
@@ -851,7 +951,7 @@ function ShadamaFactory(threeRenderer, optDimension) {
 
             table.scalarParamTable.keysAndValuesDo((key, entry) => {
                 var name = entry[2];
-		var uni;
+                var uni;
                 uni = "u_scalar_" + name;
                 uniLocations[uni] = gl.getUniformLocation(prog, uni);
             });
@@ -865,11 +965,11 @@ function ShadamaFactory(threeRenderer, optDimension) {
                 }
                 var object = objects["this"];
 
-                var targets = outs.map(function(pair) {return objects[pair[0]]["new" + pair[1]]});
+                var targets = outs.map(function(pair) {return objects[pair[0]][N + pair[1]]});
                 if (forBreed) {
-                    setTargetBuffers(framebufferT, targets);
+                    setTargetBuffers(framebufferBreed, targets);
                 } else {
-                    setTargetBuffers(framebufferR, targets);
+                    setTargetBuffers(framebufferPatch, targets);
                 }
 
                 state.useProgram(prog);
@@ -879,7 +979,7 @@ function ShadamaFactory(threeRenderer, optDimension) {
                 gl.uniform3f(uniLocations["u_resolution"], VW, VH, VD);
                 gl.uniform3f(uniLocations["v_resolution"], VW/VS, VH/VS, VD/VS);
                 gl.uniform1f(uniLocations["v_step"], VS);
-                gl.uniform1f(uniLocations["u_particleLength"], T);
+                gl.uniform2f(uniLocations["v_half"], 0.5/viewportW, 0.5/viewportH);
 
                 var offset = 0;
                 if (!forBreed || hasPatchInput) {
@@ -921,10 +1021,6 @@ function ShadamaFactory(threeRenderer, optDimension) {
                     }
                 }
 
-                //            if (forBreed) {
-                //                gl.clearColor(0.0, 0.0, 0.0, 0.0);
-                //                gl.clear(gl.COLOR_BUFFER_BIT);
-                //            }
                 gl.drawArrays(gl.POINTS, 0, object.count);
                 gl.flush();
                 setTargetBuffers(null, null);
@@ -933,8 +1029,8 @@ function ShadamaFactory(threeRenderer, optDimension) {
                     var o = objects[pair[0]];
                     var name = pair[1];
                     var tmp = o[name];
-                    o[name] = o["new"+name];
-                    o["new"+name] = tmp;
+                    o[name] = o[N + name];
+                    o[N + name] = tmp;
                 }
                 gl.bindVertexArray(null);
             }
@@ -956,18 +1052,16 @@ function ShadamaFactory(threeRenderer, optDimension) {
         this.readPixelArray = null;
         this.readPixelCallback = null;
 
-        debugTexture0 = createTexture(new Float32Array(T*T*4), gl.FLOAT, T, T);
-        debugTexture1 = createTexture(new Float32Array(FW*FH*4), gl.FLOAT, FW, FH);
+        debugTextureBreed = createTexture(new Float32Array(T*T*4), gl.FLOAT, T, T);
+        debugTexturePatch = createTexture(new Float32Array(FW*FH*4), gl.FLOAT, FW, FH);
 
-        framebufferT = makeFramebuffer(gl.R32F, T, T);
-        framebufferR = makeFramebuffer(gl.R32F, FW, FH);
-        framebufferF = makeFramebuffer(gl.FLOAT, FW, FH);
-        framebufferD = makeFramebuffer(gl.UNSIGNED_BYTE, FW, FH);
-        framebufferD0 = makeFramebuffer(gl.FLOAT, T, T);
-        framebufferD1 = makeFramebuffer(gl.FLOAT, FW, FH);
+        framebufferBreed = makeFramebuffer(gl.R32F, T, T);
+        framebufferPatch = makeFramebuffer(gl.R32F, FW, FH);
+        framebufferU8RGBA = makeFramebuffer(gl.UNSIGNED_BYTE, FW, FH);
+        framebufferDBreed = makeFramebuffer(gl.FLOAT, T, T);
+        framebufferDPatch = makeFramebuffer(gl.FLOAT, FW, FH);
 
-        readFramebufferT = makeFramebuffer(gl.R32F, T, T);
-        readFramebufferR = makeFramebuffer(gl.R32F, FW, FH);
+        framebufferDiffuse = makeFramebuffer(gl.R32F, FW, FH);
     }
 
     Shadama.prototype.evalShadama = function(source) {
@@ -981,6 +1075,7 @@ function ShadamaFactory(threeRenderer, optDimension) {
     Shadama.prototype.loadShadama = function(id, source) {
         var newSetupCode;
         var oldProgramName = this.programName;
+        var schemaChange = false;
         this.statics = {};
         this.staticsList = [];
         this.scripts = {};
@@ -1018,9 +1113,9 @@ function ShadamaFactory(threeRenderer, optDimension) {
             } else {
                 var js = entry[3];
                 if (js[0] === "updateBreed") {
-                    update(Breed, js[1], js[2], this.env);
+                    schemaChange = update(Breed, js[1], js[2], this.env) || schemaChange;
                 } else if (js[0] === "updatePatch") {
-                    update(Patch, js[1], js[2], this.env);
+                    schemaChange = update(Patch, js[1], js[2], this.env) || schemaChange;
                 } else if (js[0] === "updateScript") {
                     var table = entry[0];
                     var func = dimension == 2 ? programFromTable : programFromTable3;
@@ -1031,8 +1126,12 @@ function ShadamaFactory(threeRenderer, optDimension) {
         }
 
         if (this.setupCode !== newSetupCode) {
-            var success = this.callSetup();
+            schemaChange = true;
             this.setupCode = newSetupCode;
+        }
+
+        if (schemaChange) {
+            var success = this.callSetup();
             if (!success) {return };
         }
         this.populateList(this.staticsList);
@@ -1099,17 +1198,17 @@ function ShadamaFactory(threeRenderer, optDimension) {
             }
             debugCanvas1.width = width;
             debugCanvas1.height = height;
-	    if (standalone) {
-		document.body.appendChild(debugCanvas1);
-	    }
+            if (standalone) {
+                document.body.appendChild(debugCanvas1);
+            }
         }
 
         var prog = programs[forBreed ? "debugBreed" : "debugPatch"];
 
         if (forBreed) {
-            setTargetBuffer(framebufferD0, debugTexture0);
+            setTargetBuffer(framebufferDBreed, debugTextureBreed);
         } else {
-            setTargetBuffer(framebufferD1, debugTexture1);
+            setTargetBuffer(framebufferDPatch, debugTexturePatch);
         }
 
         state.useProgram(prog.program);
@@ -1124,7 +1223,7 @@ function ShadamaFactory(threeRenderer, optDimension) {
             gl.viewport(0, 0, width, height);
         }
         gl.uniform1i(prog.uniLocations["u_value"], 0);
-        gl.uniform2iv(prog.uniLocations["u_fudge"], fudgeValue);
+        gl.uniform2f(prog.uniLocations["u_half"], 0.5/width, 0.5/height);
 
         if (!standalone) {
             renderer.setClearColor(new THREE.Color(0x000000));
@@ -1148,8 +1247,6 @@ function ShadamaFactory(threeRenderer, optDimension) {
             debugArray1[i] = debugArray[i * 4 + 0];
         }
 
-        console.log("debugArray", debugArray);
-
         for (var i = 0; i < width * height; i++) {
             debugArray2[i * 4 + 0] = debugArray[i * 4 + 0] * 255;
             debugArray2[i * 4 + 1] = debugArray[i * 4 + 1] * 255;
@@ -1162,93 +1259,7 @@ function ShadamaFactory(threeRenderer, optDimension) {
         setTargetBuffer(null, null);
 
         gl.bindVertexArray(null);
-	return debugArray1;
-    }
-
-    Shadama.prototype.detectFudge = function() {
-        var prog = programs["debugBreed"];
-
-        setTargetBuffer(framebufferD0, debugTexture0);
-
-        state.useProgram(prog.program);
-        gl.bindVertexArray(prog.vao);
-
-        var ary = new Float32Array(T * T);
-        for (var j = 0; j < 4; j++) {
-            for (var i = 0; i < 4; i++) {
-                var ind = T * j + i;
-                ary[ind+0] = i + (j * 100);
-            }
-        }
-
-        var tex = createTexture(ary, gl.R32F, T, T);
-
-        state.activeTexture(gl.TEXTURE0);
-        state.bindTexture(gl.TEXTURE_2D, tex);
-
-        if (standalone) {
-            gl.viewport(0, 0, T, T);
-        }
-        gl.uniform1i(prog.uniLocations["u_value"], 0);
-        gl.uniform2iv(prog.uniLocations["u_fudge"], [0, 0]);
-
-        if (!standalone) {
-            renderer.setClearColor(new THREE.Color(0x000000));
-            renderer.clearColor();
-        } else {
-            gl.clearColor(0.0, 0.0, 0.0, 0.0);
-            gl.clear(gl.COLOR_BUFFER_BIT);
-        }
-
-        noBlend();
-
-        gl.drawArrays(gl.POINTS, 0, T * T);
-        gl.flush();
-
-        var read = new Float32Array(T * T * 4);
-        var result = new Array(4 * 4);
-        gl.readPixels(0, 0, T, T, gl.RGBA, gl.FLOAT, read, 0);
-
-        for (var j = 0; j < 4; j++) {
-            for (var i = 0; i < 4; i++) {
-		var ind = (j * T + i) * 4;
-            result[j * 4 + i] = read[ind];
-	    }
-        }
-
-        console.log("result", result);
-	var sresult = result.toString();
-
-        setTargetBuffer(null, null);
-        gl.bindVertexArray(null);
-
-	var candidates = [
-	    [[0, 1, 2, 3,
-	      100, 101, 102, 103,
-	      200, 201, 202, 203,
-	      300, 301, 302, 303].toString(),
-	     [0, 0]],
-	    [[100, 101, 102, 103,
-	      200, 201, 202, 203,
-	      300, 301, 302, 303,
-	      0, 0, 0, 0].toString(),
-	     [0, -1]],
-	    [[101, 102, 103, 0,
-	      201, 202, 203, 0,
-	      301, 302, 303, 0,
-	      0, 0, 0, 0].toString(),
-	     [-1, -1]]];
-	
-	for (var i = 0; i < candidates.length; i++) {
-	    var c = candidates[i];
-	    if (c[0] == sresult) {
-		return c[1];
-	    }
-	}
-
-	gl.deleteTexture(tex);
-
-	return [0, 0];
+        return debugArray1;
     }
 
     Shadama.prototype.resetSystem = function() {
@@ -1382,6 +1393,19 @@ function ShadamaFactory(threeRenderer, optDimension) {
         });
     }
 
+    function checkPending(obj) {
+        var ind = pendingLoads[0].indexOf(obj);
+        if (ind >= 0) {
+            pendingLoads[0].splice(ind, 1);
+        }
+        if (pendingLoads[0].length === 0) {
+            if (pendingLoads[1]) {
+                pendingLoads[1]();
+                pendingLoads[1] = null;
+            }
+        }
+    }
+
     Shadama.prototype.initAudio = function(name, keyName, callback) {
         if (!standalone) {return;}
         var location = window.location.toString();
@@ -1401,17 +1425,14 @@ function ShadamaFactory(threeRenderer, optDimension) {
                 audioContext.decodeAudioData(request.response,
                                              function(buffer) {
                                                  that.env[keyName] = buffer;
-                                                 if (callback) {
-                                                     callback();
-                                                 }
+                                                 checkPending(request);
                                              },
                                              function(error) {
                                                  console.log(error);
-                                                 if (callback) {
-                                                     callback();
-                                                 }
+                                                 checkPending(request);
                                              });
             }
+            pendingLoads[0].push(request);
             request.send();
         }
 
@@ -1440,12 +1461,12 @@ function ShadamaFactory(threeRenderer, optDimension) {
                 console.log("no internet");
                 document.body.removeChild(img);
                 that.env[keyName] = that.emptyImageData(256, 256);
-                if (callback) {
-                    callback();
-                }
+                checkPending(img);
             }
             img.src = "http://tinlizzie.org/~ohshima/ahiru/" + name;
         }
+
+        img.hidden = true;
 
         img.onload = function() {
             tmpCanvas.width = img.width;
@@ -1453,10 +1474,9 @@ function ShadamaFactory(threeRenderer, optDimension) {
             tmpCanvas.getContext('2d').drawImage(img, 0, 0);
             that.env[keyName] = tmpCanvas.getContext('2d').getImageData(0, 0, img.width, img.height);
             document.body.removeChild(img);
-            if (callback) {
-                callback();
-            }
+            checkPending(img);
         }
+        pendingLoads[0].push(img);
         document.body.appendChild(img);
     }
 
@@ -1469,13 +1489,15 @@ function ShadamaFactory(threeRenderer, optDimension) {
         this.env["Display"] = new Display(this);
 
         if (standalone) {
+            pendingLoads[1] = callback;
             this.initAudio("degauss.mp3", "degauss");
             this.initImage("mask.png", "mask");
-            this.initImage("blur.png", "blur");
+            this.initImage("blur-blue.png", "blurBlue");
             this.initImage("blur-big.png", "blurBig");
             this.initImage("windows.png", "windows");
+            this.initImage("presentation.png", "presentation");
             this.initImage("button.png", "button");
-            this.initImage("ahiru.png", "image", callback);
+            this.initImage("ahiru.png", "image");
         } else {
             callback();
         }
@@ -1630,13 +1652,13 @@ function ShadamaFactory(threeRenderer, optDimension) {
             var name = option.label;
             var source = localStorage.getItem(name);
             if (source) {
+                this.env["Display"].clear();
                 console.log("loading: " + name);
                 this.resetSystem();
                 this.loadShadama(null, source);
                 if (editor) {
                     editor.doc.setValue(source);
                 }
-                this.env["Display"].clear();
                 this.maybeRunner();
             }
         }
@@ -1745,14 +1767,14 @@ function ShadamaFactory(threeRenderer, optDimension) {
     Display.prototype.clear = function() {
         var t = webglTexture();
         if (t) {
-            setTargetBuffer(framebufferD, t);
+            setTargetBuffer(framebufferU8RGBA, t);
         } else {
             setTargetBuffer(null, null);
         }
 
         if (standalone) {
             gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
-            gl.clearColor(0.0, 0.0, 0.0, 0.0);
+            gl.clearColor(1.0, 1.0, 1.0, 1.0);
             gl.clear(gl.COLOR_BUFFER_BIT);
         } else {
             this.otherColor.copy(renderer.getClearColor());
@@ -1857,17 +1879,17 @@ function ShadamaFactory(threeRenderer, optDimension) {
             var y = new Float32Array(T * T);
             var z = new Float32Array(T * T);
 
-	    var ind = 0;
+            var ind = 0;
 
             for (var l = 0; l < zDim; l += step) {
-		for (var j = 0; j < yDim; j += step) {
+                for (var j = 0; j < yDim; j += step) {
                     for (var i = 0; i < xDim; i += step) {
-			x[ind] = i;
-			y[ind] = j;
-			z[ind] = l;
-			ind++;
+                        x[ind] = i;
+                        y[ind] = j;
+                        z[ind] = l;
+                        ind++;
                     }
-		}
+                }
             }
             updateOwnVariable(this, xName, x);
             updateOwnVariable(this, yName, y);
@@ -1914,7 +1936,7 @@ function ShadamaFactory(threeRenderer, optDimension) {
             var t = webglTexture();
 
             if (t) {
-                setTargetBuffer(framebufferD, t);
+                setTargetBuffer(framebufferU8RGBA, t);
             } else {
                 setTargetBuffer(null, null);
             }
@@ -1952,7 +1974,7 @@ function ShadamaFactory(threeRenderer, optDimension) {
                 gl.viewport(0, 0, FW, FH);
             }
             gl.uniform2f(prog.uniLocations["u_resolution"], FW, FH);
-            gl.uniform2iv(prog.uniLocations["u_fudge"], fudgeValue);
+            gl.uniform2f(prog.uniLocations["u_half"], 0.5/T, 0.5/T);
 
             gl.drawArrays(gl.POINTS, 0, this.count);
             gl.flush();
@@ -2008,13 +2030,62 @@ function ShadamaFactory(threeRenderer, optDimension) {
             gl.uniform1i(prog.uniLocations["u_a"], 6);
 
             gl.uniformMatrix4fv(uniLocations["mvpMatrix"], false, mvpMatrix.elements);
-            gl.uniform3f(prog.uniLocations["u_resolution"], FW, FH, FW); // TODO
-            gl.uniform2iv(prog.uniLocations["u_fudge"], fudgeValue);
+            gl.uniform3f(prog.uniLocations["u_resolution"], VW, VH, VD);
+            gl.uniform3f(prog.uniLocations["u_half"], 0.5/VW, 0.5/VH, 0.5/VD);
 
             gl.drawArrays(gl.POINTS, 0, this.count);
             gl.flush();
             noBlend();
 
+            gl.bindVertexArray(null);
+        }
+
+        increasePatch(patch, name, valueOrSrcName) {
+            var prog = programs["increasePatch"];
+
+            var dst = patch[name];
+
+            setTargetBuffer(framebufferDiffuse, dst);
+
+            var uniLocations = prog.uniLocations;
+
+            state.useProgram(prog.program);
+            gl.bindVertexArray(prog.vao);
+
+            oneBlend();
+
+            state.activeTexture(gl.TEXTURE0);
+            state.bindTexture(gl.TEXTURE_2D, this.x);
+            gl.uniform1i(uniLocations["u_that_x"], 0);
+
+            state.activeTexture(gl.TEXTURE1);
+            state.bindTexture(gl.TEXTURE_2D, this.y);
+            gl.uniform1i(uniLocations["u_that_y"], 1);
+
+            gl.uniform2f(uniLocations["u_resolution"], FW, FH);
+            gl.uniform2f(uniLocations["u_half"], 0.5/FW, 0.5/FH);
+
+            if (typeof valueOrSrcName === "string") {
+                state.activeTexture(gl.TEXTURE2);
+                state.bindTexture(gl.TEXTURE_2D, this[valueOrSrcName]);
+                gl.uniform1i(prog.uniLocations["u_texture"], 2);
+                gl.uniform1i(prog.uniLocations["u_use_vector"], 1);
+            } else {
+                gl.uniform1i(prog.uniLocations["u_texture"], 0);
+                gl.uniform1i(prog.uniLocations["u_use_vector"], 0);
+                gl.uniform1f(prog.uniLocations["u_value"], valueOrSrcName);
+            }
+
+            if (standalone) {
+                gl.viewport(0, 0, FW, FH);
+            }
+
+            gl.drawArrays(gl.POINTS, 0, this.count);
+            gl.flush();
+
+            normalBlend();
+
+            setTargetBuffer(null, null);
             gl.bindVertexArray(null);
         }
 
@@ -2029,7 +2100,6 @@ function ShadamaFactory(threeRenderer, optDimension) {
     }
 
     class Patch {
-
         constructor() {
             this.own = {};
         }
@@ -2039,7 +2109,7 @@ function ShadamaFactory(threeRenderer, optDimension) {
             var t = webglTexture();
 
             if (t) {
-                setTargetBuffer(framebufferD, t);
+                setTargetBuffer(framebufferU8RGBA, t);
             } else {
                 setTargetBuffer(null, null);
             }
@@ -2069,7 +2139,7 @@ function ShadamaFactory(threeRenderer, optDimension) {
                 gl.viewport(0, 0, FW, FH);
             }
             gl.uniform2f(prog.uniLocations["u_resolution"], FW, FH);
-            gl.uniform2iv(prog.uniLocations["u_fudge"], fudgeValue);
+            gl.uniform2f(prog.uniLocations["u_half"], 0.5/FW, 0.5/FH);
 
             gl.drawArrays(gl.POINTS, 0, FW * FH);
             gl.flush();
@@ -2092,7 +2162,7 @@ function ShadamaFactory(threeRenderer, optDimension) {
             var t = webglTexture();
 
             if (t) {
-                setTargetBuffer(framebufferD, t);
+                setTargetBuffer(framebufferU8RGBA, t);
             } else {
                 setTargetBuffer(null, null);
             }
@@ -2121,10 +2191,10 @@ function ShadamaFactory(threeRenderer, optDimension) {
             gl.uniform1i(prog.uniLocations["u_a"], 3);
 
             gl.uniformMatrix4fv(uniLocations["mvpMatrix"], false, mvpMatrix.elements);
-            gl.uniform3f(prog.uniLocations["u_resolution"], FW, FH, FW); // TODO
-            gl.uniform3f(prog.uniLocations["v_resolution"], VW/VS, VH/VS, VD/VS); // TODO
+            gl.uniform3f(prog.uniLocations["u_resolution"], VW, VH, VD);
+            gl.uniform3f(prog.uniLocations["v_resolution"], VW/VS, VH/VS, VD/VS);
             gl.uniform1i(prog.uniLocations["v_step"], VS);
-            gl.uniform2iv(prog.uniLocations["u_fudge"], fudgeValue);
+            gl.uniform3f(prog.uniLocations["u_half"], 0.5/VW, 0.5/VH, 0.5/VD);
 
             gl.drawArrays(gl.POINTS, 0, VTW * VTH);
             gl.flush();
@@ -2138,6 +2208,43 @@ function ShadamaFactory(threeRenderer, optDimension) {
             gl.bindVertexArray(null);
         }
 
+        diffuse(name) {
+            var prog = programs["diffusePatch"];
+            var src = this[name];
+            var dst = this[N + name];
+
+            setTargetBuffer(framebufferDiffuse, dst);
+
+            if (gl.checkFramebufferStatus(gl.FRAMEBUFFER) !== gl.FRAMEBUFFER_COMPLETE) {
+                console.log("incomplete framebuffer");
+            }
+
+            var uniLocations = prog.uniLocations;
+
+            state.useProgram(prog.program);
+            gl.bindVertexArray(prog.vao);
+
+            noBlend();
+
+            state.activeTexture(gl.TEXTURE0);
+            state.bindTexture(gl.TEXTURE_2D, src);
+            gl.uniform1i(prog.uniLocations["u_value"], 0);
+
+            if (standalone) {
+                gl.viewport(0, 0, FW, FH);
+            }
+
+            gl.uniform2f(prog.uniLocations["u_half"], 0.5/FW, 0.5/FH);
+
+            gl.drawArrays(gl.POINTS, 0, FW * FH);
+            gl.flush();
+
+            setTargetBuffer(null, null);
+            gl.bindVertexArray(null);
+
+            this[name] = dst;
+            this[N + name] = src;
+        }
     }
 
     Shadama.prototype.cleanUpEditorState = function() {
@@ -2190,7 +2297,11 @@ function ShadamaFactory(threeRenderer, optDimension) {
                                 }
                                 var docPos = editor.doc.posFromIndex(pos);
                                 var widget = toDOM(['parseerror', repeat(' ', docPos.ch) + '^\n' + msg]);
-                                console.log(pos, msg);
+                                if (pos && msg) {
+                                    console.log(pos, msg);
+                                } else {
+                                    console.log(error);
+                                }
                                 parseErrorWidget = editor.addLineWidget(docPos.line, widget);
                             }
                         },
@@ -2399,12 +2510,7 @@ Shadama {
     = ident "." ident -- field
     | ident
 
-  Expression = EqualityExpression
-
-  EqualityExpression
-    = EqualityExpression "==" LogicalExpression  -- equal
-    | EqualityExpression "!=" LogicalExpression  -- notEqual
-    | LogicalExpression
+  Expression = LogicalExpression
 
   LogicalExpression
     = LogicalExpression "&&" RelationalExpression       -- and
@@ -2412,10 +2518,12 @@ Shadama {
     | RelationalExpression
 
   RelationalExpression
-    = RelationalExpression "<" AddExpression           -- lt
-    | RelationalExpression ">" AddExpression           -- gt
-    | RelationalExpression "<=" AddExpression          -- le
+    = RelationalExpression "<=" AddExpression          -- le
     | RelationalExpression ">=" AddExpression          -- ge
+    | RelationalExpression "<" AddExpression           -- lt
+    | RelationalExpression ">" AddExpression           -- gt
+    | RelationalExpression "==" AddExpression          -- equal
+    | RelationalExpression "!=" AddExpression          -- notEqual
     | AddExpression
 
   AddExpression
@@ -2496,57 +2604,77 @@ Shadama {
 
     var globalTable; // This is a bad idea but then I don't know how to keep the reference to global.
 
-    function initCompiler() {
-        g = ohm.grammar(shadamaGrammar);
-        s = g.createSemantics();
-        initSemantics();
-    }
+    var primitives;
 
-    function initSemantics() {
-        function addDefaults(obj) {
-            obj["clear"] = new SymTable([], true);
-            obj["setCount"] = new SymTable([
-                ["param", null, "num"]], true);
-            obj["draw"] = new SymTable([], true);
-            obj["render"] = new SymTable([], true);
-            obj["fillRandom"] = new SymTable([
+    function initPrimitiveTable() {
+        var data = {
+            "clear": new SymTable([], true),
+            "setCount": new SymTable([
+                ["param", null, "num"]], true),
+            "draw": new SymTable([], true),
+            "render": new SymTable([], true),
+            "fillRandom": new SymTable([
                 ["param", null, "name"],
                 ["param", null, "min"],
-                ["param", null, "max"]], true);
-            obj["fillRandomDir"] = new SymTable([
+                ["param", null, "max"]], true),
+            "fillRandomDir": new SymTable([
                 ["param", null, "xDir"],
-                ["param", null, "yDir"]] ,true);
-            obj["fillRandomDir3"] = new SymTable([
+                ["param", null, "yDir"]] ,true),
+            "fillRandomDir3":  new SymTable([
                 ["param", null, "xDir"],
                 ["param", null, "yDir"],
-                ["param", null, "zDir"]], true);
-            obj["fillSpace"] = new SymTable([
+                ["param", null, "zDir"]], true),
+            "fillSpace": new SymTable([
                 ["param", null, "xName"],
                 ["param", null, "yName"],
                 ["param", null, "x"],
-                ["param", null, "y"]], true);
-            obj["fillCuboid"] = new SymTable([
+                ["param", null, "y"]], true),
+            "fillCuboid": new SymTable([
                 ["param", null, "xName"],
                 ["param", null, "yName"],
                 ["param", null, "zName"],
                 ["param", null, "x"],
                 ["param", null, "y"],
                 ["param", null, "z"],
-                ["param", null, "step"]], true);
-            obj["fillImage"] = new SymTable([
+                ["param", null, "step"]], true),
+            "fillImage": new SymTable([
                 ["param", null, "xName"],
                 ["param", null, "yName"],
                 ["param", null, "rName"],
                 ["param", null, "gName"],
                 ["param", null, "bName"],
                 ["param", null, "aName"],
-                ["param", null, "imageData"]], true);
-            obj["diffuse"] = new SymTable([
-                ["param", null, "name"]], true);
-            obj["random"] = new SymTable([
-                ["param", null, "seed"]], true);
-            obj["playSound"] = new SymTable([
-                ["param", null, "name"]], true);
+                ["param", null, "imageData"]], true),
+            "diffuse": new SymTable([
+                ["param", null, "name"]], true),
+            "increasePatch": new SymTable([
+                ["param", null, "name"],
+                ["param", null, "patch"],
+                ["param", null, "valueOrSrcName"]], true),
+            "random": new SymTable([
+                ["param", null, "seed"]], true),
+            "playSound": new SymTable([
+                ["param", null, "name"]], true)
+        };
+
+        primitives = {};
+        for (var k in data) {
+            primitives[k] = data[k];
+        }
+    }
+
+    function initCompiler() {
+        g = ohm.grammar(shadamaGrammar);
+        s = g.createSemantics();
+        initPrimitiveTable();
+        initSemantics();
+    }
+
+    function initSemantics() {
+        function addDefaults(obj) {
+            for (var k in primitives) {
+                obj[k] = primitives[k];
+            }
         }
 
         function processHelper(symDict) {
@@ -2765,6 +2893,9 @@ Shadama {
                 Formals_list(h, _c, r) {
                     return [h.sourceString].concat(r.children.map((c) => c.sourceString));
                 },
+                empty() {
+                    return [];
+                }
             });
 
         s.addOperation(
@@ -2791,10 +2922,10 @@ Shadama {
                     var table = this.args.table;
                     var vert = this.args.vert;
 
-                    vert.push(h.sourceString);
+                    vert.push("float " + h.sourceString);
                     for (var i = 0; i < r.children.length; i++) {
                         var c = r.children[i];
-                        vert.push(", ");
+                        vert.push(", float ");
                         vert.push(c.sourceString);
                     }
                 },
@@ -2903,38 +3034,6 @@ Shadama {
                     e.glsl_helper(this.args.table, this.args.vert);
                 },
 
-                EqualityExpression(e) {
-                    e.glsl_helper(this.args.table, this.args.vert);
-                },
-
-                EqualityExpression_equal(l, _, r) {
-                    transBinOp(l, r, " == ", this.args);
-                },
-
-                EqualityExpression_notEqual(l, _, r) {
-                    transBinOp(l, r, " != ", this.args);
-                },
-
-                RelationalExpression(e) {
-                    e.glsl_helper(this.args.table, this.args.vert);
-                },
-
-                RelationalExpression_lt(l, _, r) {
-                    transBinOp(l, r, " < ", this.args);
-                },
-
-                RelationalExpression_gt(l, _, r) {
-                    transBinOp(l, r, " > ", this.args);
-                },
-
-                RelationalExpression_le(l, _, r) {
-                    transBinOp(l, r, " <= ", this.args);
-                },
-
-                RelationalExpression_ge(l, _, r) {
-                    transBinOp(l, r, " >= ", this.args);
-                },
-
                 LogicalExpression(e) {
                     e.glsl_helper(this.args.table, this.args.vert);
                 },
@@ -2947,6 +3046,33 @@ Shadama {
                     transBinOp(l, r, " || ", this.args);
                 },
 
+                RelationalExpression(e) {
+                    e.glsl_helper(this.args.table, this.args.vert);
+                },
+
+                RelationalExpression_le(l, _, r) {
+                    transBinOp(l, r, " <= ", this.args);
+                },
+
+                RelationalExpression_ge(l, _, r) {
+                    transBinOp(l, r, " >= ", this.args);
+                },
+
+                RelationalExpression_lt(l, _, r) {
+                    transBinOp(l, r, " < ", this.args);
+                },
+
+                RelationalExpression_gt(l, _, r) {
+                    transBinOp(l, r, " > ", this.args);
+                },
+
+                RelationalExpression_equal(l, _, r) {
+                    transBinOp(l, r, " == ", this.args);
+                },
+
+                RelationalExpression_notEqual(l, _, r) {
+                    transBinOp(l, r, " != ", this.args);
+                },
 
                 AddExpression(e) {
                     e.glsl_helper(this.args.table, this.args.vert);
@@ -3065,15 +3191,15 @@ Shadama {
                     var frag = this.args.frag;
 
                     var patchInput = `
-  float _x = texelFetch(u_that_x, ivec2(a_index)${fudge}, 0).r;
-  float _y = texelFetch(u_that_y, ivec2(a_index)${fudge}, 0).r;
+  float _x = texelFetch(u_that_x, ivec2(a_index), 0).r;
+  float _y = texelFetch(u_that_y, ivec2(a_index), 0).r;
   vec2 _pos = vec2(_x, _y);
 `;
 
                     var voxelInput = `
-  float _x = texelFetch(u_that_x, ivec2(a_index)${fudge}, 0).r;
-  float _y = texelFetch(u_that_y, ivec2(a_index)${fudge}, 0).r;
-  float _z = texelFetch(u_that_z, ivec2(a_index)${fudge}, 0).r;
+  float _x = texelFetch(u_that_x, ivec2(a_index), 0).r;
+  float _y = texelFetch(u_that_y, ivec2(a_index), 0).r;
+  float _z = texelFetch(u_that_z, ivec2(a_index), 0).r;
   _x = floor(_x / v_step); // 8   //  [0..64), if originally within [0..512)
   _y = floor(_y / v_step); // 8
   _z = floor(_z / v_step); // 8
@@ -3083,15 +3209,15 @@ Shadama {
 `;
 
                     var patchPrologue = `
-  vec2 oneToOne = (_pos / u_resolution) * 2.0 - 1.0;
+  vec2 oneToOne = ((_pos / u_resolution) + u_half) * 2.0 - 1.0;
 `;
 
                     var breedPrologue = `
-  vec2 oneToOne = b_index * 2.0 - 1.0;
+  vec2 oneToOne = (b_index + u_half) * 2.0 - 1.0;
 `;
 
                     var voxelPrologue = `
-  vec2 oneToOne = (_pos / u_resolution.xy) * 2.0 - 1.0;
+  vec2 oneToOne = ((_pos / u_resolution.xy) + u_half) * 2.0 - 1.0;
 `;
 
                     var epilogue = `
@@ -3153,6 +3279,7 @@ precision highp float;
 layout (location = 0) in vec2 a_index;
 layout (location = 1) in vec2 b_index;
 uniform vec${dimension} u_resolution;
+uniform vec2 u_half;
 `;
 
                     if (dimension == 3) {
@@ -3387,38 +3514,6 @@ uniform sampler2D u_that_y;
                     e.glsl(this.args.table, this.args.vert, this.args.frag);
                 },
 
-                EqualityExpression(e) {
-                    e.glsl(this.args.table, this.args.vert, this.args.frag);
-                },
-
-                EqualityExpression_equal(l, _, r) {
-                    transBinOp(l, r, " == ", this.args);
-                },
-
-                EqualityExpression_notEqual(l, _, r) {
-                    transBinOp(l, r, " != ", this.args);
-                },
-
-                RelationalExpression(e) {
-                    e.glsl(this.args.table, this.args.vert, this.args.frag);
-                },
-
-                RelationalExpression_lt(l, _, r) {
-                    transBinOp(l, r, " < ", this.args);
-                },
-
-                RelationalExpression_gt(l, _, r) {
-                    transBinOp(l, r, " > ", this.args);
-                },
-
-                RelationalExpression_le(l, _, r) {
-                    transBinOp(l, r, " <= ", this.args);
-                },
-
-                RelationalExpression_ge(l, _, r) {
-                    transBinOp(l, r, " >= ", this.args);
-                },
-
                 LogicalExpression(e) {
                     e.glsl(this.args.table, this.args.vert, this.args.frag);
                 },
@@ -3429,6 +3524,34 @@ uniform sampler2D u_that_y;
 
                 LogicalExpression_or(l, _, r) {
                     transBinOp(l, r, " || ", this.args);
+                },
+
+                RelationalExpression(e) {
+                    e.glsl(this.args.table, this.args.vert, this.args.frag);
+                },
+
+                RelationalExpression_le(l, _, r) {
+                    transBinOp(l, r, " <= ", this.args);
+                },
+
+                RelationalExpression_ge(l, _, r) {
+                    transBinOp(l, r, " >= ", this.args);
+                },
+
+                RelationalExpression_lt(l, _, r) {
+                    transBinOp(l, r, " < ", this.args);
+                },
+
+                RelationalExpression_gt(l, _, r) {
+                    transBinOp(l, r, " > ", this.args);
+                },
+
+                RelationalExpression_equal(l, _, r) {
+                    transBinOp(l, r, " == ", this.args);
+                },
+
+                RelationalExpression_notEqual(l, _, r) {
+                    transBinOp(l, r, " != ", this.args);
                 },
 
                 AddExpression(e) {
@@ -3512,11 +3635,11 @@ uniform sampler2D u_that_y;
                         if (n.sourceString === "this") {
                             vert.push("texelFetch(" +
                                       table.uniform(["propIn", n.sourceString, f.sourceString]) +
-                                      `, ivec2(a_index)${fudge}, 0).r`);
+                                      `, ivec2(a_index), 0).r`);
                         } else {
                             vert.push("texelFetch(" +
                                       table.uniform(["propIn", n.sourceString, f.sourceString]) +
-                                      `, ivec2(_pos)${fudge}, 0).r`);
+                                      `, ivec2(_pos), 0).r`);
                         }
                     }
                 },
@@ -3736,38 +3859,6 @@ uniform sampler2D u_that_y;
                     e.static(this.args.table, this.args.js, this.args.method, this.args.isOther);
                 },
 
-                EqualityExpression(e) {
-                    e.static(this.args.table, this.args.js, this.args.method, this.args.isOther);
-                },
-
-                EqualityExpression_equal(l, _, r) {
-                    staticTransBinOp(l, r, " == ", this.args);
-                },
-
-                EqualityExpression_notEqual(l, _, r) {
-                    staticTransBinOp(l, r, " != ", this.args);
-                },
-
-                RelationalExpression(e) {
-                    e.static(this.args.table, this.args.js, this.args.method, this.args.isOther);
-                },
-
-                RelationalExpression_lt(l, _, r) {
-                    staticTransBinOp(l, r, " < ", this.args);
-                },
-
-                RelationalExpression_gt(l, _, r) {
-                    staticTransBinOp(l, r, " > ", this.args);
-                },
-
-                RelationalExpression_le(l, _, r) {
-                    staticTransBinOp(l, r, " <= ", this.args);
-                },
-
-                RelationalExpression_ge(l, _, r) {
-                    staticTransBinOp(l, r, " >= ", this.args);
-                },
-
                 LogicalExpression(e) {
                     e.static(this.args.table, this.args.js, this.args.method, this.args.isOther);
                 },
@@ -3778,6 +3869,34 @@ uniform sampler2D u_that_y;
 
                 LogicalExpression_or(l, _, r) {
                     staticTransBinOp(l, r, " || ", this.args);
+                },
+
+                RelationalExpression(e) {
+                    e.static(this.args.table, this.args.js, this.args.method, this.args.isOther);
+                },
+
+                RelationalExpression_le(l, _, r) {
+                    staticTransBinOp(l, r, " <= ", this.args);
+                },
+
+                RelationalExpression_ge(l, _, r) {
+                    staticTransBinOp(l, r, " >= ", this.args);
+                },
+
+                RelationalExpression_lt(l, _, r) {
+                    staticTransBinOp(l, r, " < ", this.args);
+                },
+
+                RelationalExpression_gt(l, _, r) {
+                    staticTransBinOp(l, r, " > ", this.args);
+                },
+
+                RelationalExpression_equal(l, _, r) {
+                    staticTransBinOp(l, r, " == ", this.args);
+                },
+
+                RelationalExpression_notEqual(l, _, r) {
+                    staticTransBinOp(l, r, " != ", this.args);
                 },
 
                 AddExpression(e) {
@@ -3890,24 +4009,24 @@ uniform sampler2D u_that_y;
 
                     var displayBuiltIns = ["clear", "playSound"];
 
-                    var builtIns = ["draw", "render", "setCount", "fillRandom", "fillSpace", "fillCuboid", "fillRandomDir", "fillRandomDir3", "fillImage", "diffuse"];
+                    var builtIns = ["draw", "render", "setCount", "fillRandom", "fillSpace", "fillCuboid", "fillRandomDir", "fillRandomDir3", "fillImage", "diffuse", "increasePatch"];
                     var myTable = table[n.sourceString];
 
-                    if (r.sourceString === "Display" && displayBuiltIns.indexOf(method) >= 0) {
-                        var actuals = as.static_method_inner(table, null, method, false);
-                        var str = actuals.join(", ");
-                        js.push(`env["${r.sourceString}"].${method}(${str})`);
-                        return;
-                    }
-
-                    if (builtIns.indexOf(method) >= 0) {
-                        var actuals = as.static_method_inner(table, null, method, false);
-                        var str = actuals.join(", ");
-                        js.push(`env["${r.sourceString}"].${method}(${str})`);
-                        return;
-                    }
-
                     var actuals = as.static_method_inner(table, null, method, false);
+                    if ((r.sourceString === "Display" && displayBuiltIns.indexOf(method) >= 0) || builtIns.indexOf(method) >= 0) {
+                        if (actuals.length !== primitives[method].param.size()) {
+                            var error = new Error("semantic error");
+                            error.reason = `argument count does not match for primitive ${method}`;
+                            error.expected = `argument count does not match for primitive ${method}`;
+                            error.pos = as.source.endIdx;
+                            error.src = null;
+                            throw error;
+                        }
+                        var str = actuals.join(", ");
+                        js.push(`env["${r.sourceString}"].${method}(${str})`);
+                        return;
+                    }
+
                     var formals;
                     if (myTable) {
                         formals = myTable.param;
@@ -4069,7 +4188,7 @@ uniform sampler2D u_that_y;
                 }
             }
 
-            this.defaultUniforms = ["u_resolution", "u_fudge"];
+            this.defaultUniforms = ["u_resolution", "u_half"];
             this.defaultAttributes = ["a_index", "b_index"];
         }
 
@@ -4214,7 +4333,7 @@ uniform sampler2D u_that_y;
         uniformDefaults() {
             return this.varyingTable.keysAndValuesCollect((key, entry) => {
                 var u_entry = ["propIn", entry[1], entry[2]];
-                var ind = entry[1] === "this" ? `ivec2(a_index)${fudge}` : `ivec2(_pos)${fudge}`;
+                var ind = entry[1] === "this" ? `ivec2(a_index)` : `ivec2(_pos)`;
                 return `${this.varying(entry)} = texelFetch(${this.uniform(u_entry)}, ${ind}, 0).r;`;
             })
         }
@@ -4241,7 +4360,7 @@ uniform sampler2D u_that_y;
         hasVariable(n) {
             if (this.param.has(n)) {return true;}
             if (this.local.has(n)) {return true;}
-            if (["this", "u_resolution", "u_particleLength", "a_index"].indexOf(n) >= 0) {
+            if (["this", "u_resolution", "u_half", "a_index", "b_index"].indexOf(n) >= 0) {
                 return true;
             }
             return false;
@@ -4454,9 +4573,9 @@ def bounce(field) {
     ry = dy - 2.0 * dot * ny;
     rz = dz - 2.0 * dot * nz;
     var norm = sqrt(rx * rx + ry * ry * rz * rz);
-    rx = rx / (norm / origV);
-    ry = ry / (norm / origV);
-    rz = rz / (norm / origV);
+    rx = rx / (norm / origV) / 2;
+    ry = ry / (norm / origV) / 2;
+    rz = rz / (norm / origV) / 2;
   }
 
   var newX = this.x + dx;
@@ -4474,7 +4593,11 @@ def bounce(field) {
 
   if (newY < 0.0) {
     newY = mod(newY, u_resolution.y);
+    newX = 10;
+    newZ = 10;
     ry = -0.1;
+    rx = 0.05 + random(rz + a_index.x) * 0.1;
+    rz = 0.08 + random(rx + a_index.x) * 0.1;
   }
   if (newY > u_resolution.y) {
     newY = u_resolution.y - (newY - u_resolution.y);
@@ -4641,12 +4764,6 @@ static loop() {
     runTests = /test.?=/.test(window.location.search);
     showAllEnv = !(/allEnv=/.test(window.location.search));
     degaussdemo = /degaussdemo/.test(window.location.search);
-    var userFudge = /fudge=([0-9-]+),([0-9-]+)/.exec(window.location.search);
-
-    if (userFudge) {
-	fudge = "+ ivec2(" + userFudge[1] + ", " + userFudge[2] + ")";
-	fudgeValue = [userFudge[1], userFudge[2]];
-    }
 
     if (standalone) {
         if (degaussdemo) {
@@ -4693,10 +4810,10 @@ static loop() {
         shadama.initServerFiles();
         shadama.initFileList();
 
-	if (degaussdemo) {
+        if (degaussdemo) {
             document.getElementById("bigTitle").innerHTML = "<button>Full Screen</button>";
             document.getElementById("bigTitle").firstChild.onclick = shadama.goFullScreen;
-	}
+        }
 
         if (!editor) {
             function words(str) { let o = {}; str.split(" ").forEach((s) => o[s] = true); return o; }
@@ -4741,7 +4858,6 @@ static loop() {
 
     initBreedVAO();
     initPatchVAO();
-    initCompiler();
 
     programs["drawBreed"] = drawBreedProgram();
     programs["drawPatch"] = drawPatchProgram();
@@ -4749,12 +4865,8 @@ static loop() {
     programs["debugBreed"] = debugBreedProgram();
     programs["renderBreed"] = renderBreedProgram();
     programs["renderPatch"] = renderPatchProgram();
-
-    if (!userFudge) {
-	var f = shadama.detectFudge();
-	fudge = "+ ivec2(" + f[0] + ", " + f[1] + ")";
-	fudgeValue = f;
-    }
+    programs["diffusePatch"] = diffusePatchProgram();
+    programs["increasePatch"] = increasePatchProgram();
 
     initCompiler();
 
