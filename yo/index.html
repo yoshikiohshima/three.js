@@ -42,8 +42,7 @@
 		  shadama = ShadamaFactory(renderer);
 
 		  function doShadama() {
-		  	//shadama.setTarget(renderer.properties.get(material.map).__webglTexture);
-			shadama.loadShadama(null, shadama.testCode3D());
+			shadama.env["Display"].loadProgram("16-Bounce3.shadama");
 		  	cube.onAfterRender = shadama.makeOnAfterRender();
                   }
 

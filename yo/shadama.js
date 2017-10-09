@@ -57,6 +57,11 @@ function ShadamaFactory(threeRenderer, optDimension) {
     var framebufferDiffuse;
     var framebufferU8RGBA;  // for three js u8rgba texture
 
+    var readFramebufferBreed;
+    var readFramebufferPatch;
+    var writeFramebufferBreed;
+    var writeFramebufferPatch;
+
     var editor = null;
     var editorType = null;
     var parseErrorWidget = null;
@@ -710,7 +715,31 @@ function ShadamaFactory(threeRenderer, optDimension) {
     }
 
     function textureCopy(obj, src, dst) {
-        return;
+        var w;
+        var h;
+        var readbuffer;
+        var writebuffer;
+
+        if (obj.constructor === Breed) {
+            w = T;
+            h = T;
+            readbuffer = readFramebufferBreed;
+            writebuffer = writeFramebufferBreed;
+        } else if (obj.constructor === Patch) {
+            w = FW;
+            h = FH;
+            readbuffer = readFramebufferPatch;
+            writebuffer = writeFramebufferPatch;
+        }
+
+        renderer.setRenderTarget(readbuffer, gl.READ_FRAMEBUFFER);
+        gl.framebufferTexture2D(gl.READ_FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, src, 0);
+
+        renderer.setRenderTarget(writebuffer, gl.DRAW_FRAMEBUFFER);
+        gl.framebufferTexture2D(gl.DRAW_FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, dst, 0);
+
+        gl.blitFramebuffer(0, 0, w, h, 0, 0, w, h, gl.COLOR_BUFFER_BIT, gl.NEAREST);
+        setTargetBuffer(null, null);
     }
 
     function updateOwnVariable(obj, name, optData) {
@@ -859,6 +888,10 @@ function ShadamaFactory(threeRenderer, optDimension) {
                 if (forBreed) {
                     setTargetBuffers(framebufferBreed, targets);
                 } else {
+                    outs.forEach((pair) => {
+                        textureCopy(objects[pair[0]],
+                                    objects[pair[0]][pair[1]],
+                                    objects[pair[0]][N + pair[1]])});
                     setTargetBuffers(framebufferPatch, targets);
                 }
 
@@ -969,6 +1002,10 @@ function ShadamaFactory(threeRenderer, optDimension) {
                 if (forBreed) {
                     setTargetBuffers(framebufferBreed, targets);
                 } else {
+                    outs.forEach((pair) => {
+                        textureCopy(objects[pair[0]],
+                                    objects[pair[0]][pair[1]],
+                                    objects[pair[0]][N + pair[1]])});
                     setTargetBuffers(framebufferPatch, targets);
                 }
 
@@ -1037,6 +1074,28 @@ function ShadamaFactory(threeRenderer, optDimension) {
         })();
     }
 
+    function initFramebuffers() {
+        debugTextureBreed = createTexture(new Float32Array(T*T*4), gl.FLOAT, T, T);
+        debugTexturePatch = createTexture(new Float32Array(FW*FH*4), gl.FLOAT, FW, FH);
+
+        framebufferBreed = makeFramebuffer(gl.R32F, T, T);
+        framebufferPatch = makeFramebuffer(gl.R32F, FW, FH);
+
+        framebufferU8RGBA = makeFramebuffer(gl.UNSIGNED_BYTE, FW, FH);
+
+        framebufferDiffuse = makeFramebuffer(gl.R32F, FW, FH);
+
+        readFramebufferBreed = makeFramebuffer(gl.R32F, T, T);
+        readFramebufferPatch = makeFramebuffer(gl.R32F, FW, FH);
+
+        writeFramebufferBreed = makeFramebuffer(gl.R32F, T, T);
+        writeFramebufferPatch = makeFramebuffer(gl.R32F, FW, FH);
+
+        framebufferDBreed = makeFramebuffer(gl.FLOAT, T, T);
+        framebufferDPatch = makeFramebuffer(gl.FLOAT, FW, FH);
+
+    }
+
     function Shadama() {
         this.env = {};  // {name: value}
         this.scripts = {};    // {name: [function, inOutParam]}
@@ -1052,16 +1111,6 @@ function ShadamaFactory(threeRenderer, optDimension) {
         this.readPixelArray = null;
         this.readPixelCallback = null;
 
-        debugTextureBreed = createTexture(new Float32Array(T*T*4), gl.FLOAT, T, T);
-        debugTexturePatch = createTexture(new Float32Array(FW*FH*4), gl.FLOAT, FW, FH);
-
-        framebufferBreed = makeFramebuffer(gl.R32F, T, T);
-        framebufferPatch = makeFramebuffer(gl.R32F, FW, FH);
-        framebufferU8RGBA = makeFramebuffer(gl.UNSIGNED_BYTE, FW, FH);
-        framebufferDBreed = makeFramebuffer(gl.FLOAT, T, T);
-        framebufferDPatch = makeFramebuffer(gl.FLOAT, FW, FH);
-
-        framebufferDiffuse = makeFramebuffer(gl.R32F, FW, FH);
     }
 
     Shadama.prototype.evalShadama = function(source) {
@@ -1338,7 +1387,7 @@ function ShadamaFactory(threeRenderer, optDimension) {
             var y = FH - (e.clientY + diffY - top) / fullScreenScale;
             //  console.log("y " + e.clientY + " top " + top + " pageY: " + e.pageY);
             //  console.log("x " + x + " y: " + y);
-            that.env[symbol] = {x: x,  y: y};
+            that.env[symbol] = {x: x,  y: y, time: that.env["time"]};
         }
 
         aCanvas.addEventListener("mousemove", function(e) {
@@ -1363,34 +1412,31 @@ function ShadamaFactory(threeRenderer, optDimension) {
 
     Shadama.prototype.initServerFiles = function() {
         if (!standalone) {return;}
-        var location = window.location.toString();
         var examples = [
-            "1-Fill.shadama", "2-Disperse.shadama", "3-Gravity.shadama", "4-Two Circles.shadama", "5-Bounce.shadama", "6-Picture.shadama", "7-Duck Bounce.shadama", "8-Back and Forth.shadama", "9-Mandelbrot.shadama", "10-Life Game.shadama", "11-Ball Gravity.shadama", "12-Duck Gravity.shadama", "13-Ribbons.shadama"
+            "1-Fill.shadama", "2-Disperse.shadama", "3-Gravity.shadama", "4-Two Circles.shadama", "5-Bounce.shadama", "6-Picture.shadama", "7-Duck Bounce.shadama", "8-Back and Forth.shadama", "9-Mandelbrot.shadama", "10-Life Game.shadama", "11-Ball Gravity.shadama", "12-Duck Gravity.shadama", "13-Ribbons.shadama", "16-Diffuse.shadama", "19-Bump.shadama"
         ];
-
-        if (!location.startsWith("http")) {return;}
-
-        var slash = location.lastIndexOf("/");
-        var dir = location.slice(0, slash) + "/" + "examples";
-        var that = this;
         examples.forEach((n) => {
-            var file = dir + "/" + encodeURIComponent(n);
-            console.log(file);
-            var xhttp = new XMLHttpRequest();
-            xhttp.onreadystatechange = function() {
-                if (this.readyState == 4 && this.status == 200) {
-                    // Typical action to be performed when the document is ready:
-                    var serverCode = xhttp.responseText;
-                    var localCode = localStorage.getItem(n);
-                    if (!localCode) {
-                        localStorage.setItem(n, serverCode);
-                    }
-                    that.initFileList();
+            this.env["Display"].loadProgram(n, (serverCode) => {
+                var localCode = localStorage.getItem(n);
+                if (!localCode) {
+                    localStorage.setItem(n, serverCode);
                 }
-            };
-            xhttp.open("GET", file, true);
-            xhttp.send();
+                this.initFileList();
+            })
         });
+    }
+
+    function checkPending(obj) {
+        var ind = pendingLoads[0].indexOf(obj);
+        if (ind >= 0) {
+            pendingLoads[0].splice(ind, 1);
+        }
+        if (pendingLoads[0].length === 0) {
+            if (pendingLoads[1]) {
+                pendingLoads[1]();
+                pendingLoads[1] = null;
+            }
+        }
     }
 
     function checkPending(obj) {
@@ -1440,7 +1486,7 @@ function ShadamaFactory(threeRenderer, optDimension) {
             var slash = location.lastIndexOf("/");
             loadSound(location.slice(0, slash) + "/" + name);
         } else {
-            loadSound("http://tinlizzie.org/~ohshima/ahiru/" + name);
+            loadSound("http://tinlizzie.org/~ohshima/shadama2/" + name);
         }
     }
 
@@ -1463,7 +1509,7 @@ function ShadamaFactory(threeRenderer, optDimension) {
                 that.env[keyName] = that.emptyImageData(256, 256);
                 checkPending(img);
             }
-            img.src = "http://tinlizzie.org/~ohshima/ahiru/" + name;
+            img.src = "http://tinlizzie.org/~ohshima/shadama2/" + name;
         }
 
         img.hidden = true;
@@ -1480,13 +1526,15 @@ function ShadamaFactory(threeRenderer, optDimension) {
         document.body.appendChild(img);
     }
 
+    Shadama.prototype.initDisplay = function() {
+        this.env["Display"] = new Display(this);
+    }
+
     Shadama.prototype.initEnv = function(callback) {
         this.env.mousedown = {x: 0, y: 0};
         this.env.mousemove = {x: 0, y: 0};
         this.env.width = FW;
         this.env.height = FH;
-
-        this.env["Display"] = new Display(this);
 
         if (standalone) {
             pendingLoads[1] = callback;
@@ -1498,6 +1546,9 @@ function ShadamaFactory(threeRenderer, optDimension) {
             this.initImage("presentation.png", "presentation");
             this.initImage("button.png", "button");
             this.initImage("ahiru.png", "image");
+            this.initImage("rightbutton.png", "right");
+            this.initImage("goals.png", "goals");
+            this.initImage("futurework.png", "futurework");
         } else {
             callback();
         }
@@ -1797,6 +1848,33 @@ function ShadamaFactory(threeRenderer, optDimension) {
         source.start(0);                           // play the source now
     }
 
+    Display.prototype.loadProgram = function(name, func) {
+        var location = window.location.toString();
+        if (!location.startsWith("http")) {return;}
+        var slash = location.lastIndexOf("/");
+        var dir = location.slice(0, slash) + "/" + "examples";
+        var that = this;
+
+        var file = dir + "/" + encodeURIComponent(name);
+        var xhttp = new XMLHttpRequest();
+        xhttp.onreadystatechange = function() {
+            if (this.readyState == 4 && this.status == 200) {
+                var serverCode = xhttp.responseText;
+                if (func) {
+                    func(serverCode);
+                } else {
+                    that.shadama.loadShadama(null, serverCode);
+                    if (editor) {
+                        editor.doc.setValue(serverCode);
+                    }
+                    that.shadama.maybeRunner();
+                }
+            }
+        };
+        xhttp.open("GET", file, true);
+        xhttp.send();
+    };
+
     Shadama.prototype.emptyImageData = function(width, height) {
         var ary = new Uint8ClampedArray(width * height * 4);
         for (var i = 0; i < width * height; i++) {
@@ -2043,8 +2121,9 @@ function ShadamaFactory(threeRenderer, optDimension) {
         increasePatch(patch, name, valueOrSrcName) {
             var prog = programs["increasePatch"];
 
-            var dst = patch[name];
-
+            var src = patch[name];
+            var dst = patch[N + name];
+            textureCopy(patch, src, dst);
             setTargetBuffer(framebufferDiffuse, dst);
 
             var uniLocations = prog.uniLocations;
@@ -2087,7 +2166,10 @@ function ShadamaFactory(threeRenderer, optDimension) {
 
             setTargetBuffer(null, null);
             gl.bindVertexArray(null);
-        }
+
+            patch[name] = dst;
+            patch[N + name] = src;
+       }
 
         setCount(n) {
             var oldCount = this.count;
@@ -2452,16 +2534,34 @@ function ShadamaFactory(threeRenderer, optDimension) {
     }
 
     Shadama.prototype.goFullScreen = function() {
-        var rx = window.innerWidth / FW;
-        var ry = window.innerHeight / FH;
 
-        fullScreenScale = Math.min(rx, ry);
+        var req = shadamaCanvas.requestFullscreen || shadamaCanvas.webkitRequestFullscreen ||
+            shadamaCanvas.mozRequestFullScreen || shadamaCanvas.msRequestFullscreen;
 
-        var req = shadamaCanvas.requestFullscreen || shadamaCanvas.webkitRequestFullscreen;
         if (req) {
             req.call(shadamaCanvas);
-            shadamaCanvas.style.width = FW * fullScreenScale + 'px';
-            shadamaCanvas.style.height = FH * fullScreenScale + 'px';
+
+            function fsChanged() {
+                if (document.fullscreenElement ||
+                        document.webkitFullscreenElement ||
+                        document.mozFullScreenElement ||
+                        document.msFullscreenElement) {
+                    var rx = window.innerWidth / FW;
+                    var ry = window.innerHeight / FH;
+                    fullScreenScale = Math.min(rx, ry);
+                    shadamaCanvas.style.width = FW * fullScreenScale + 'px';
+                    shadamaCanvas.style.height = FH * fullScreenScale + 'px';
+                } else {
+                    fullScreenScale = 1.0;
+                    shadamaCanvas.style.width = FW + 'px';
+                    shadamaCanvas.style.height = FH + 'px';
+                }
+            };
+
+            document.addEventListener("fullscreenchange", fsChanged);
+            document.addEventListener("webkitfullscreenchange", fsChanged);
+            document.addEventListener("mozfullscreenchange", fsChanged);
+            document.addEventListener("MSFullscreenChange", fsChanged);
         }
     }
 
@@ -2654,6 +2754,8 @@ Shadama {
             "random": new SymTable([
                 ["param", null, "seed"]], true),
             "playSound": new SymTable([
+                ["param", null, "name"]], true),
+            "loadProgram": new SymTable([
                 ["param", null, "name"]], true)
         };
 
@@ -4007,7 +4109,7 @@ uniform sampler2D u_that_y;
                     var js = this.args.js;
                     var method = n.sourceString;
 
-                    var displayBuiltIns = ["clear", "playSound"];
+                    var displayBuiltIns = ["clear", "playSound", "loadProgram"];
 
                     var builtIns = ["draw", "render", "setCount", "fillRandom", "fillSpace", "fillCuboid", "fillRandomDir", "fillRandomDir3", "fillImage", "diffuse", "increasePatch"];
                     var myTable = table[n.sourceString];
@@ -4514,244 +4616,8 @@ highp float random(float seed) {
         return n.glsl(symTable, null, null);
     }
 
-    Shadama.prototype.testCode3D = function() {
-        return `
-program "Bounce3"
-
-breed Turtle (x, y, z, dx, dy, dz, r, g, b, a)
-breed Filler (x, y, z)
-patch Field (nx, ny, nz, r, g, b, a)
-
-def setColor() {
-  this.r = this.x / 512.0;
-  this.g = this.y / 512.0;
-  this.b = this.z / 512.0;
-  this.a = 1.0;
-}
-
-def clear(field) {
-  field.r = 0.0;
-  field.g = 0.0;
-  field.b = 0.0;
-  field.a = 0.0;
-  field.nx = 0.0;
-  field.ny = 0.0;
-  field.nz = 0.0;
-}
-
-def fillSphere(cx, cy, cz, r, field) {
-  var dx = this.x - cx;
-  var dy = this.y - cy;
-  var dz = this.z - cz;
-  var dr = sqrt(dx * dx + dy * dy + dz * dz);
-  if (dr < r) {
-    field.r = 0.2;
-    field.g = 0.2;
-    field.b = 0.8;
-    field.a = 1.0;
-    field.nx = dx / r;
-    field.ny = dy / r;
-    field.nz = dz / r;
-  }
-}
-
-def bounce(field) {
-  var nx = field.nx;
-  var ny = field.ny;
-  var nz = field.nz;
-  var dx = this.dx;
-  var dy = this.dy - 0.01;
-  var dz = this.dz;
-  var dot = dx * nx + dy * ny + dz * nz;
-  var rx = dx;
-  var ry = dy;
-  var rz = dz;
-  var origV = sqrt(dx * dx + dy * dy + dz * dz);
-
-  if (dot < 0.0) {
-    rx = dx - 2.0 * dot * nx;
-    ry = dy - 2.0 * dot * ny;
-    rz = dz - 2.0 * dot * nz;
-    var norm = sqrt(rx * rx + ry * ry * rz * rz);
-    rx = rx / (norm / origV) / 2;
-    ry = ry / (norm / origV) / 2;
-    rz = rz / (norm / origV) / 2;
-  }
-
-  var newX = this.x + dx;
-  var newY = this.y + dy;
-  var newZ = this.z + dz;
-
-  if (newX < 0.0) {
-    newX = -newX;
-    rx = -rx * 0.9;
-  }
-  if (newX > u_resolution.x) {
-    newX = u_resolution.x - (newX - u_resolution.x);
-    rx = -rx * 0.9;
-  }
-
-  if (newY < 0.0) {
-    newY = mod(newY, u_resolution.y);
-    newX = 10;
-    newZ = 10;
-    ry = -0.1;
-    rx = 0.05 + random(rz + a_index.x) * 0.1;
-    rz = 0.08 + random(rx + a_index.x) * 0.1;
-  }
-  if (newY > u_resolution.y) {
-    newY = u_resolution.y - (newY - u_resolution.y);
-    ry = -ry;
-  }
-
-  if (newZ < 0.0) {
-    newZ = -newZ;
-    rz = -rz * 0.9;
-  }
-  if (newZ > u_resolution.z) {
-    newZ = u_resolution.z - (newZ - u_resolution.z);
-    rz = -rz;
-  }
-
-
-  this.x = newX;
-  this.y = newY;
-  this.z = newZ;
-  this.dx = rx;
-  this.dy = ry;
-  this.dz = rz;
-}
-
-static setup() {
-  Filler.fillCuboid("x", "y", "z", 512, 512, 512, 8);
-  Turtle.setCount(900000);
-  Turtle.fillRandom("x", 0, 512);
-  Turtle.fillRandom("y", 256, 512);
-  Turtle.fillRandom("z", 0, 512);
-  Turtle.fillRandomDir3("dx", "dy", "dz");
-  Turtle.setColor();
-}
-
-static loop() {
-  Filler.clear(Field);
-  Filler.fillSphere(75, 75, 75, 200, Field);
-  Turtle.bounce(Field);
-  Turtle.render();
-  Field.render();
-}
-`;
-    }
-
-    Shadama.prototype.testCode2D = function() {
-        return `
-program "Bounce"
-
-breed Turtle (x, y, dx, dy, r, g, b, a)
-breed Filler (x, y)
-patch Field (nx, ny, r, g, b, a)
-
-def setColor() {
-  this.r = this.x / 512.0;
-  this.g = this.y / 512.0;
-  this.b = 0.0;
-  this.a = 1.0;
-}
-
-def clear(field) {
-  field.r = 0.0;
-  field.g = 0.0;
-  field.b = 0.0;
-  field.a = 0.0;
-  field.nx = 0.0;
-  field.ny = 0.0;
-}
-
-def fillCircle(cx, cy, r, field) {
-  var dx = this.x - cx;
-  var dy = this.y - cy;
-  var dr = sqrt(dx * dx + dy * dy);
-  if (dr < r) {
-    field.r = 0.2;
-    field.g = 0.2;
-    field.b = 0.8;
-    field.a = 1.0;
-    field.nx = dx / r;
-    field.ny = dy / r;
-  }
-}
-
-def zeroDir() {
-  this.dx = 0.0;
-  this.dy = 0.0;
-}
-
-def bounce(field) {
-  var nx = field.nx;
-  var ny = field.ny;
-  var dx = this.dx;
-  var dy = this.dy - 0.01;
-  var dot = dx * nx + dy * ny;
-  var rx = dx;
-  var ry = dy;
-  var origV = sqrt(dx * dx + dy * dy);
-
-  if (dot < 0.0) {
-    rx = dx - 2.0 * dot * nx;
-    ry = dy - 2.0 * dot * ny;
-    var norm = sqrt(rx * rx + ry * ry);
-    rx = rx / (norm / origV);
-    ry = ry / (norm / origV);
-  }
-
-  var newX = this.x + dx;
-  var newY = this.y + dy;
-
-  if (newX < 0.0) {
-    newX = -newX;
-    rx = -rx * 0.9;
-  }
-  if (newX > u_resolution.x) {
-    newX = u_resolution.x - (newX - u_resolution.x);
-    rx = -rx * 0.9;
-  }
-  if (newY < 0.0) {
-    newY = mod(newY, u_resolution.y);
-    ry = -0.1;
-  }
-  if (newY > u_resolution.y) {
-    newY = u_resolution.y - (newY - u_resolution.y);
-    ry = -ry;
-  }
-
-  this.x = newX;
-  this.y = newY;
-  this.dx = rx;
-  this.dy = ry;
-}
-
-static setup() {
-  Filler.fillSpace("x", "y", 512, 512);
-  Turtle.setCount(300000);
-  Turtle.fillRandom("x", 0, 512);
-  Turtle.fillRandom("y", 256, 512);
-  Turtle.fillRandomDir("dx", "dy");
-  Turtle.setColor();
-}
-
-static loop() {
-  Filler.clear(Field);
-  Filler.fillCircle(75, 75, 20, Field);
-  Filler.fillCircle(300, 95, 25, Field);
-  Turtle.bounce(Field);
-  Display.clear();
-  Field.draw();
-  Turtle.draw();
-}
-`;
-    }
-
     var shadama;
-    var defaultProgName = "forward.shadama";
+    var defaultProgName = "5-Bounce.shadama";
 
     standalone = !threeRenderer;
     renderer = threeRenderer;
@@ -4769,7 +4635,7 @@ static loop() {
         if (degaussdemo) {
             FIELD_WIDTH = 1024;
             FIELD_HEIGHT = 768
-            defaultProgName = "degauss.shadama";
+            defaultProgName = "14-DeGauss.shadama";
         }
         var match;
         match = /fw=([0-9]+)/.exec(window.location.search);
@@ -4806,6 +4672,7 @@ static loop() {
         state = gl;
 
         shadama = new Shadama();
+        shadama.initDisplay();
         shadama.addListeners(shadamaCanvas);
         shadama.initServerFiles();
         shadama.initFileList();
@@ -4834,11 +4701,14 @@ static loop() {
         }
 
         shadama.initEnv(function() {
-            var source = shadama.loadShadama(defaultProgName);
-            if (editor) {
-                editor.doc.setValue(source);
-            }
-            shadama.maybeRunner();
+            var func = function (source) {
+                shadama.loadShadama(null, source);
+                if (editor) {
+                    editor.doc.setValue(source);
+                }
+                shadama.maybeRunner();
+            };
+            shadama.env["Display"].loadProgram(defaultProgName, func);
         });
     } else {
         if (!renderer.context ||
@@ -4853,11 +4723,13 @@ static loop() {
         state = renderer.state;
         var ext = gl.getExtension("EXT_color_buffer_float");
         shadama = new Shadama();
+        shadama.initDisplay();
         shadama.initEnv(function() {});
     }
 
     initBreedVAO();
     initPatchVAO();
+    initFramebuffers();
 
     programs["drawBreed"] = drawBreedProgram();
     programs["drawPatch"] = drawPatchProgram();
