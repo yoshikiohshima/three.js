@@ -1,4 +1,5 @@
-function ShadamaFactory(threeRenderer, optDimension, parent, optDefaultProgName) {
+function ShadamaFactory(frame, optDimension, parent, optDefaultProgName) {
+    var threeRenderer = frame ? frame.renderer : null;
     var TEXTURE_SIZE = 1024;
     var FIELD_WIDTH = 512;
     var FIELD_HEIGHT = 512;
@@ -1093,7 +1094,6 @@ function ShadamaFactory(threeRenderer, optDimension, parent, optDefaultProgName)
 
         framebufferDBreed = makeFramebuffer(gl.FLOAT, T, T);
         framebufferDPatch = makeFramebuffer(gl.FLOAT, FW, FH);
-
     }
 
     function Shadama() {
@@ -1110,7 +1110,6 @@ function ShadamaFactory(threeRenderer, optDimension, parent, optDefaultProgName)
 
         this.readPixelArray = null;
         this.readPixelCallback = null;
-
     }
 
     Shadama.prototype.evalShadama = function(source) {
@@ -1439,19 +1438,6 @@ function ShadamaFactory(threeRenderer, optDimension, parent, optDefaultProgName)
         }
     }
 
-    function checkPending(obj) {
-        var ind = pendingLoads[0].indexOf(obj);
-        if (ind >= 0) {
-            pendingLoads[0].splice(ind, 1);
-        }
-        if (pendingLoads[0].length === 0) {
-            if (pendingLoads[1]) {
-                pendingLoads[1]();
-                pendingLoads[1] = null;
-            }
-        }
-    }
-
     Shadama.prototype.initAudio = function(name, keyName) {
         if (!standalone) {return;}
         var location = window.location.toString();
@@ -1527,45 +1513,44 @@ function ShadamaFactory(threeRenderer, optDimension, parent, optDefaultProgName)
     }
 
     Shadama.prototype.loadCSV = function(name, keyName) {
-	var xobj = new XMLHttpRequest();
-	var that = this;
+        var xobj = new XMLHttpRequest();
+        var that = this;
 
         var location = window.location.toString();
         if (location.startsWith("http")) {
-	    var slash = location.lastIndexOf("/");
-	    var dir = location.slice(0, slash) + "/" + name;
-	} else {
-	    img.crossOrigin = "Anonymous";
-	    img.onerror = function() {
+            var slash = location.lastIndexOf("/");
+            var dir = location.slice(0, slash) + "/" + name;
+        } else {
+            img.crossOrigin = "Anonymous";
+            img.onerror = function() {
                 console.log("no internet");
                 checkPending(img);
-	    }
-	    var dir = "http://tinlizzie.org/~ohshima/shadama2/" + name;
+            }
+            var dir = "http://tinlizzie.org/~ohshima/shadama2/" + name;
         }
-	
-	xobj.open("GET", dir, true);
-	xobj.responseType = "blob";
-	
-	xobj.onload = function(oEvent) {
-	    var blob = xobj.response;
-	    var file = new File([blob], dir);
-	    Papa.parse(file, {complete: resultCSV, error: errorCSV});
-	};
-	
-	function errorCSV(error, file) {
-	    console.log("ERROR:", error, file);
+        
+        xobj.open("GET", dir, true);
+        xobj.responseType = "blob";
+        
+        xobj.onload = function(oEvent) {
+            var blob = xobj.response;
+            var file = new File([blob], dir);
+            Papa.parse(file, {complete: resultCSV, error: errorCSV});
+        };
+        
+        function errorCSV(error, file) {
+            console.log("ERROR:", error, file);
             checkPending(xobj);
-	}
+        }
 
-	function resultCSV(result) {
-	    that.env[keyName] = result.data;
+        function resultCSV(result) {
+            that.env[keyName] = result.data;
             checkPending(xobj);
-	    
-	}
+            
+        }
         pendingLoads[0].push(xobj);
-	xobj.send();
+        xobj.send();
     }
-
 
     Shadama.prototype.initDisplay = function() {
         this.env["Display"] = new Display(this);
@@ -1591,7 +1576,7 @@ function ShadamaFactory(threeRenderer, optDimension, parent, optDefaultProgName)
             this.initImage("futurework.png", "futurework");
         } else {
             this.loadCSV("airports.dat", "Airports");
-//            callback();
+//          callback();
         }
     }
 
@@ -2050,22 +2035,22 @@ function ShadamaFactory(threeRenderer, optDimension, parent, optDefaultProgName)
             updateOwnVariable(this, aName, a);
         }
 
-	loadData(data) {
-	    // assumes that the first line is the schema of the table
-	    var schema = data[0];
-		
-	    for (var k in this.own) {
-		var ind = schema.indexOf(k);
-		if (ind >= 0) {
-		    var ary = new Float32Array(T * T);
-		    for (var i = 1; i < data.length; i++) {
-			ary[i - 1] = data[i][ind];
-		    }
-		    updateOwnVariable(this, k, ary);
-		}
-		this.setCount(data.length - 1);
-	    }
-	}
+        loadData(data) {
+            // assumes that the first line is the schema of the table
+            var schema = data[0];
+                
+            for (var k in this.own) {
+                var ind = schema.indexOf(k);
+                if (ind >= 0) {
+                    var ary = new Float32Array(T * T);
+                    for (var i = 1; i < data.length; i++) {
+                        ary[i - 1] = data[i][ind];
+                    }
+                    updateOwnVariable(this, k, ary);
+                }
+                this.setCount(data.length - 1);
+            }
+        }
 
         draw() {
             var prog = programs["drawBreed"];
@@ -2227,7 +2212,7 @@ function ShadamaFactory(threeRenderer, optDimension, parent, optDefaultProgName)
 
             patch[name] = dst;
             patch[N + name] = src;
-       }
+        }
 
         setCount(n) {
             var oldCount = this.count;
@@ -2461,19 +2446,19 @@ function ShadamaFactory(threeRenderer, optDimension, parent, optDefaultProgName)
                 var y = (editor.height - bounds2D.b - editor.height / 2) / scale;
                 var vec = new THREE.Vector3(x, y, 0);
                 var orig = vec.clone();
-                editor.object3D.parent.localToWorld(vec);
+                editor.parent.localToWorld(vec);
 
                 var msg = 'Expected: ' + error.msg;
 
                 if (!parseErrorWidget) {
                     parseErrorWidget =
-                        new TStickyNote(Globals.tAvatar,
+                        new TStickyNote(frame.tAvatar,
                             function(tObj){
-                                //tObj.object3D.position.set(5, -2, -2);
+                                //tObj.position.set(5, -2, -2);
                                 //tObj.setLaser();
                                 showError(tObj, msg, vec);}, 512, 256);
-                    Globals.sticky = parseErrorWidget;
-                    parseErrorWidget.object3D.scale.set(0.05, 0.05, 0.05);
+                    frame.sticky = parseErrorWidget;
+                    parseErrorWidget.scale.set(0.05, 0.05, 0.05);
                 } else {
                     showError(parseErrorWidget, msg, vec);
                 }
@@ -2488,20 +2473,19 @@ function ShadamaFactory(threeRenderer, optDimension, parent, optDefaultProgName)
     showError = function(obj, m, v) {
         obj.visible(true);
 
-        Globals.temp1 = obj;
-        Globals.mylaser = obj.laserBeam;
-        Globals.tAvatar.addChild(obj);
-        obj.object3D.position.set(30, 10, -40);
-        obj.object3D.quaternion.set(0,0,0,1);
+        frame.mylaser = obj.laserBeam;
+        frame.tAvatar.addChild(obj);
+        obj.position.set(30, 10, -40);
+        obj.quaternion.set(0,0,0,1);
 
-        var canvas = obj.object3D.material.map.image;
+        var canvas = obj.material.map.image;
         var ctx = canvas.getContext("2d");
         ctx.fillStyle = "white";
         ctx.fillRect(0, 0, canvas.width, canvas.height);
         ctx.font = "60px Arial";
         ctx.fillStyle = "blue";
         ctx.fillText(m, 5, 20);
-        obj.object3D.material.map.needsUpdate = true;
+        obj.material.map.needsUpdate = true;
         obj.release();
 
         obj.track(v);
@@ -4785,11 +4769,11 @@ highp float random(float seed) {
         shadama = new Shadama();
         shadama.initDisplay();
         shadama.initEnv(function() {
-	    if (parent) {
-		shadama.env["Display"].loadProgram(defaultProgName);
-		parent.onAfterRender = shadama.makeOnAfterRender();
-	    }
-	});
+            if (parent) {
+                shadama.env["Display"].loadProgram(defaultProgName);
+                parent.onAfterRender = shadama.makeOnAfterRender();
+            }
+        });
     }
 
     initBreedVAO();
@@ -4823,20 +4807,20 @@ highp float random(float seed) {
 
 //            this.initCSV("airports.dat", "Airport", [["Latitude", 6], ["Longitude", 7], ["Altitude", 8]]);
 
-	    // from https://openflights.org/data.html
-	    // Airport ID	Unique OpenFlights identifier for this airport.
-	    // Name	Name of airport. May or may not contain the City name.
-	    // City	Main city served by airport. May be spelled differently from Name.
-	    // Country	Country or territory where airport is located. See countries.dat to cross-reference to ISO 3166-1 codes.
-	    // IATA	3-letter IATA code. Null if not assigned/unknown.
-	    // ICAO	4-letter ICAO code.
-	    // Null if not assigned.
-	    // Latitude	Decimal degrees, usually to six significant digits. Negative is South, positive is North.
-	    // Longitude	Decimal degrees, usually to six significant digits. Negative is West, positive is East.
-	    // Altitude	In feet.
-	    // Timezone	Hours offset from UTC. Fractional hours are expressed as decimals, eg. India is 5.5.
-	    // DST	Daylight savings time. One of E (Europe), A (US/Canada), S (South America), O (Australia), Z (New Zealand), N (None) or U (Unknown). See also: Help: Time
-	    // Tz database time zone	Timezone in "tz" (Olson) format, eg. "America/Los_Angeles".
-	    // Type	Type of the airport. Value "airport" for air terminals, "station" for train stations, "port" for ferry terminals and "unknown" if not known. In airports.csv, only type=airport is included.
-	    // Source	Source of this data. "OurAirports" for data sourced from OurAirports, "Legacy" for old data not matched to OurAirports (mostly DAFIF), "User" for unverified user contributions. In airports.csv, only source=OurAirports is included.
+            // from https://openflights.org/data.html
+            // Airport ID       Unique OpenFlights identifier for this airport.
+            // Name     Name of airport. May or may not contain the City name.
+            // City     Main city served by airport. May be spelled differently from Name.
+            // Country  Country or territory where airport is located. See countries.dat to cross-reference to ISO 3166-1 codes.
+            // IATA     3-letter IATA code. Null if not assigned/unknown.
+            // ICAO     4-letter ICAO code.
+            // Null if not assigned.
+            // Latitude Decimal degrees, usually to six significant digits. Negative is South, positive is North.
+            // Longitude        Decimal degrees, usually to six significant digits. Negative is West, positive is East.
+            // Altitude In feet.
+            // Timezone Hours offset from UTC. Fractional hours are expressed as decimals, eg. India is 5.5.
+            // DST      Daylight savings time. One of E (Europe), A (US/Canada), S (South America), O (Australia), Z (New Zealand), N (None) or U (Unknown). See also: Help: Time
+            // Tz database time zone    Timezone in "tz" (Olson) format, eg. "America/Los_Angeles".
+            // Type     Type of the airport. Value "airport" for air terminals, "station" for train stations, "port" for ferry terminals and "unknown" if not known. In airports.csv, only type=airport is included.
+            // Source   Source of this data. "OurAirports" for data sourced from OurAirports, "Legacy" for old data not matched to OurAirports (mostly DAFIF), "User" for unverified user contributions. In airports.csv, only source=OurAirports is included.
 
