@@ -1,0 +1,44 @@
+program "Airports"
+
+breed Airport (Latitude, Longitude, Altitude, x, y, z, r, g, b, a)
+
+def setColor() {
+  this.r = this.x / 512.0;
+  this.g = this.y / 512.0;
+  this.b = this.z / 512.0;
+  this.a = 1.0;
+}
+
+def setLocation() {
+  var la = this.Latitude;  // [-90, 90]
+  var lo = this.Longitude; // [-180, 180]
+  //var al = this.Altitude;
+
+  la = la * 3.141592653589793 / 180.0;  //  [-pi/2, pi/2]
+  lo = lo * 3.141592653589793 / 180.0;  //  [-pi, pi]
+
+  var r = 200;
+
+  var x = r * cos(la) * sin(lo);
+  var z = r * cos(la) * cos(lo);
+  var y = r * sin(la);
+
+  y = y + 256;
+  x = x + 256;
+  z = z + 256;
+
+  this.x = x;
+  this.y = y;
+  this.z = z;
+}
+
+static setup() {
+  Airport.loadData(Airports);
+  Airport.setLocation();
+  Airport.setColor();
+  Airport.render();
+}
+
+static loop() {
+  Airport.render();
+}

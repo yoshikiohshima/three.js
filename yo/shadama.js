@@ -1,4 +1,4 @@
-function ShadamaFactory(threeRenderer, optDimension) {
+function ShadamaFactory(threeRenderer, optDimension, parent, optDefaultProgName) {
     var TEXTURE_SIZE = 1024;
     var FIELD_WIDTH = 512;
     var FIELD_HEIGHT = 512;
@@ -1452,7 +1452,7 @@ function ShadamaFactory(threeRenderer, optDimension) {
         }
     }
 
-    Shadama.prototype.initAudio = function(name, keyName, callback) {
+    Shadama.prototype.initAudio = function(name, keyName) {
         if (!standalone) {return;}
         var location = window.location.toString();
         var that = this;
@@ -1490,7 +1490,7 @@ function ShadamaFactory(threeRenderer, optDimension) {
         }
     }
 
-    Shadama.prototype.initImage = function(name, keyName, callback) {
+    Shadama.prototype.initImage = function(name, keyName) {
         if (!standalone) {return;}
         var that = this;
         var img = document.createElement("img");
@@ -1526,6 +1526,47 @@ function ShadamaFactory(threeRenderer, optDimension) {
         document.body.appendChild(img);
     }
 
+    Shadama.prototype.loadCSV = function(name, keyName) {
+	var xobj = new XMLHttpRequest();
+	var that = this;
+
+        var location = window.location.toString();
+        if (location.startsWith("http")) {
+	    var slash = location.lastIndexOf("/");
+	    var dir = location.slice(0, slash) + "/" + name;
+	} else {
+	    img.crossOrigin = "Anonymous";
+	    img.onerror = function() {
+                console.log("no internet");
+                checkPending(img);
+	    }
+	    var dir = "http://tinlizzie.org/~ohshima/shadama2/" + name;
+        }
+	
+	xobj.open("GET", dir, true);
+	xobj.responseType = "blob";
+	
+	xobj.onload = function(oEvent) {
+	    var blob = xobj.response;
+	    var file = new File([blob], dir);
+	    Papa.parse(file, {complete: resultCSV, error: errorCSV});
+	};
+	
+	function errorCSV(error, file) {
+	    console.log("ERROR:", error, file);
+            checkPending(xobj);
+	}
+
+	function resultCSV(result) {
+	    that.env[keyName] = result.data;
+            checkPending(xobj);
+	    
+	}
+        pendingLoads[0].push(xobj);
+	xobj.send();
+    }
+
+
     Shadama.prototype.initDisplay = function() {
         this.env["Display"] = new Display(this);
     }
@@ -1536,13 +1577,12 @@ function ShadamaFactory(threeRenderer, optDimension) {
         this.env.width = FW;
         this.env.height = FH;
 
+        pendingLoads[1] = callback;
         if (standalone) {
-            pendingLoads[1] = callback;
             this.initAudio("degauss.mp3", "degauss");
             this.initImage("mask.png", "mask");
             this.initImage("blur-blue.png", "blurBlue");
             this.initImage("blur-big.png", "blurBig");
-            this.initImage("windows.png", "windows");
             this.initImage("presentation.png", "presentation");
             this.initImage("button.png", "button");
             this.initImage("ahiru.png", "image");
@@ -1550,7 +1590,8 @@ function ShadamaFactory(threeRenderer, optDimension) {
             this.initImage("goals.png", "goals");
             this.initImage("futurework.png", "futurework");
         } else {
-            callback();
+            this.loadCSV("airports.dat", "Airports");
+//            callback();
         }
     }
 
@@ -2008,6 +2049,23 @@ function ShadamaFactory(threeRenderer, optDimension) {
             updateOwnVariable(this, bName, b);
             updateOwnVariable(this, aName, a);
         }
+
+	loadData(data) {
+	    // assumes that the first line is the schema of the table
+	    var schema = data[0];
+		
+	    for (var k in this.own) {
+		var ind = schema.indexOf(k);
+		if (ind >= 0) {
+		    var ary = new Float32Array(T * T);
+		    for (var i = 1; i < data.length; i++) {
+			ary[i - 1] = data[i][ind];
+		    }
+		    updateOwnVariable(this, k, ary);
+		}
+		this.setCount(data.length - 1);
+	    }
+	}
 
         draw() {
             var prog = programs["drawBreed"];
@@ -2756,7 +2814,9 @@ Shadama {
             "playSound": new SymTable([
                 ["param", null, "name"]], true),
             "loadProgram": new SymTable([
-                ["param", null, "name"]], true)
+                ["param", null, "name"]], true),
+            "loadData": new SymTable([
+                ["param", null, "data"]], true),
         };
 
         primitives = {};
@@ -4111,7 +4171,7 @@ uniform sampler2D u_that_y;
 
                     var displayBuiltIns = ["clear", "playSound", "loadProgram"];
 
-                    var builtIns = ["draw", "render", "setCount", "fillRandom", "fillSpace", "fillCuboid", "fillRandomDir", "fillRandomDir3", "fillImage", "diffuse", "increasePatch"];
+                    var builtIns = ["draw", "render", "setCount", "fillRandom", "fillSpace", "fillCuboid", "fillRandomDir", "fillRandomDir3", "fillImage", "loadData", "diffuse", "increasePatch"];
                     var myTable = table[n.sourceString];
 
                     var actuals = as.static_method_inner(table, null, method, false);
@@ -4617,7 +4677,7 @@ highp float random(float seed) {
     }
 
     var shadama;
-    var defaultProgName = "5-Bounce.shadama";
+    var defaultProgName = optDefaultProgName || "5-Bounce.shadama";
 
     standalone = !threeRenderer;
     renderer = threeRenderer;
@@ -4724,7 +4784,12 @@ highp float random(float seed) {
         var ext = gl.getExtension("EXT_color_buffer_float");
         shadama = new Shadama();
         shadama.initDisplay();
-        shadama.initEnv(function() {});
+        shadama.initEnv(function() {
+	    if (parent) {
+		shadama.env["Display"].loadProgram(defaultProgName);
+		parent.onAfterRender = shadama.makeOnAfterRender();
+	    }
+	});
     }
 
     initBreedVAO();
@@ -4754,3 +4819,24 @@ highp float random(float seed) {
 //export {
 //   ShadamaFactory
 //}
+
+
+//            this.initCSV("airports.dat", "Airport", [["Latitude", 6], ["Longitude", 7], ["Altitude", 8]]);
+
+	    // from https://openflights.org/data.html
+	    // Airport ID	Unique OpenFlights identifier for this airport.
+	    // Name	Name of airport. May or may not contain the City name.
+	    // City	Main city served by airport. May be spelled differently from Name.
+	    // Country	Country or territory where airport is located. See countries.dat to cross-reference to ISO 3166-1 codes.
+	    // IATA	3-letter IATA code. Null if not assigned/unknown.
+	    // ICAO	4-letter ICAO code.
+	    // Null if not assigned.
+	    // Latitude	Decimal degrees, usually to six significant digits. Negative is South, positive is North.
+	    // Longitude	Decimal degrees, usually to six significant digits. Negative is West, positive is East.
+	    // Altitude	In feet.
+	    // Timezone	Hours offset from UTC. Fractional hours are expressed as decimals, eg. India is 5.5.
+	    // DST	Daylight savings time. One of E (Europe), A (US/Canada), S (South America), O (Australia), Z (New Zealand), N (None) or U (Unknown). See also: Help: Time
+	    // Tz database time zone	Timezone in "tz" (Olson) format, eg. "America/Los_Angeles".
+	    // Type	Type of the airport. Value "airport" for air terminals, "station" for train stations, "port" for ferry terminals and "unknown" if not known. In airports.csv, only type=airport is included.
+	    // Source	Source of this data. "OurAirports" for data sourced from OurAirports, "Legacy" for old data not matched to OurAirports (mostly DAFIF), "User" for unverified user contributions. In airports.csv, only source=OurAirports is included.
+
