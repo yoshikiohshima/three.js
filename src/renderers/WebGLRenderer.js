@@ -55,7 +55,7 @@ function WebGLRenderer( parameters ) {
 		_antialias = parameters.antialias !== undefined ? parameters.antialias : false,
 		_premultipliedAlpha = parameters.premultipliedAlpha !== undefined ? parameters.premultipliedAlpha : true,
 		_preserveDrawingBuffer = parameters.preserveDrawingBuffer !== undefined ? parameters.preserveDrawingBuffer : false,
-    		_webglversion = parameters.webgl2 !== undefined  ? 'webgl2' : 'webgl';
+    	        _webglversion = parameters.webgl2 !== undefined  ? 'webgl2' : 'webgl';
 
 	var lightsArray = [];
 	var shadowsArray = [];

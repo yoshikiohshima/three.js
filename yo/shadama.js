@@ -1521,11 +1521,6 @@ function ShadamaFactory(frame, optDimension, parent, optDefaultProgName) {
             var slash = location.lastIndexOf("/");
             var dir = location.slice(0, slash) + "/" + name;
         } else {
-            img.crossOrigin = "Anonymous";
-            img.onerror = function() {
-                console.log("no internet");
-                checkPending(img);
-            }
             var dir = "http://tinlizzie.org/~ohshima/shadama2/" + name;
         }
         
