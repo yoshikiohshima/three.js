@@ -1821,6 +1821,13 @@ function ShadamaFactory(frame, optDimension, parent, optDefaultProgName) {
         }
     }
 
+    Shadama.prototype.once = function(name) {
+        if (this.statics[name]) {
+            this.statics[name](this.env);
+        }
+    }
+
+
     Shadama.prototype.setEditor = function(anEditor, type) {
         editor = anEditor;
         editorType = type;
@@ -1884,7 +1891,7 @@ function ShadamaFactory(frame, optDimension, parent, optDefaultProgName) {
                 if (func) {
                     func(serverCode);
                 } else {
-                    that.shadama.loadShadama(null, serverCode);
+		    that.shadama.loadShadama(null, serverCode);
                     if (editor) {
                         editor.doc.setValue(serverCode);
                     }
@@ -2458,7 +2465,16 @@ function ShadamaFactory(frame, optDimension, parent, optDefaultProgName) {
                     showError(parseErrorWidget, msg, vec);
                 }
             }
-        }
+        } else {
+            var msg = error.expected;
+            var pos = error.pos;
+            var src = error.src;
+            if (pos && msg) {
+                console.log(pos, msg);
+            } else {
+                console.log(error);
+	    }
+	}
     }
 
     Shadama.prototype.setShowError = function(func) {
