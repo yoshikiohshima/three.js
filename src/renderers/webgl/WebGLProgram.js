@@ -79,21 +79,6 @@ function getToneMappingFunction( functionName, toneMapping ) {
 
 }
 
-function generateExtensions( extensions, parameters, rendererExtensions ) {
-
-	extensions = extensions || {};
-
-	var chunks = [
-		( extensions.derivatives || parameters.envMapCubeUV || parameters.bumpMap || parameters.normalMap || parameters.flatShading ) ? '#extension GL_OES_standard_derivatives : enable' : '',
-		( extensions.fragDepth || parameters.logarithmicDepthBuffer ) && rendererExtensions.get( 'EXT_frag_depth' ) ? '#extension GL_EXT_frag_depth : enable' : '',
-		( extensions.drawBuffers ) && rendererExtensions.get( 'WEBGL_draw_buffers' ) ? '#extension GL_EXT_draw_buffers : require' : '',
-		( extensions.shaderTextureLOD || parameters.envMap ) && rendererExtensions.get( 'EXT_shader_texture_lod' ) ? '#extension GL_EXT_shader_texture_lod : enable' : ''
-	];
-
-	return chunks.filter( filterEmptyLine ).join( '\n' );
-
-}
-
 function generateDefines( defines ) {
 
 	var chunks = [];
@@ -195,8 +180,33 @@ function unrollLoops( string ) {
 }
 
 function WebGLProgram( renderer, extensions, code, material, shader, parameters ) {
-
 	var gl = renderer.context;
+	var isWebGL2 = gl && window.WebGL2RenderingContext !== undefined && gl.constructor == window.WebGL2RenderingContext;
+        this.needsGLSL300 = isWebGL2 & material.needsGLSL300;
+
+	this.generateExtensions = function( extensions, parameters, rendererExtensions ) {
+		extensions = extensions || {};
+
+		if (isWebGL2) {
+			var chunks = [
+				( extensions.derivatives || parameters.envMapCubeUV || parameters.bumpMap || parameters.normalMap || parameters.flatShading ) ? '' : '',
+				( extensions.fragDepth || parameters.logarithmicDepthBuffer ) && rendererExtensions.get( 'EXT_frag_depth' ) ? '#extension GL_EXT_frag_depth : enable' : '',
+				( extensions.drawBuffers ) && rendererExtensions.get( 'WEBGL_draw_buffers' ) ? '#extension GL_EXT_draw_buffers : require' : '',
+				( extensions.shaderTextureLOD || parameters.envMap ) && rendererExtensions.get( 'EXT_shader_texture_lod' ) ? '#extension GL_EXT_shader_texture_lod : enable' : ''
+			];
+		    if ( extensions.derivatives || parameters.envMapCubeUV || parameters.bumpMap || parameters.normalMap || parameters.flatShading ) {
+			this.needsGLSL300 = true;
+		    }
+		} else {
+			var chunks = [
+				( extensions.derivatives || parameters.envMapCubeUV || parameters.bumpMap || parameters.normalMap || parameters.flatShading ) ? '#extension GL_OES_standard_derivatives : enable' : '',
+				( extensions.fragDepth || parameters.logarithmicDepthBuffer ) && rendererExtensions.get( 'EXT_frag_depth' ) ? '#extension GL_EXT_frag_depth : enable' : '',
+				( extensions.drawBuffers ) && rendererExtensions.get( 'WEBGL_draw_buffers' ) ? '#extension GL_EXT_draw_buffers : require' : '',
+				( extensions.shaderTextureLOD || parameters.envMap ) && rendererExtensions.get( 'EXT_shader_texture_lod' ) ? '#extension GL_EXT_shader_texture_lod : enable' : ''
+			];
+		}
+	    return chunks.filter( filterEmptyLine ).join( '\n' );
+	}
 
 	var defines = material.defines;
 
@@ -277,7 +287,7 @@ function WebGLProgram( renderer, extensions, code, material, shader, parameters 
 
 	//
 
-	var customExtensions = generateExtensions( material.extensions, parameters, extensions );
+	var customExtensions = this.generateExtensions( material.extensions, parameters, extensions );
 
 	var customDefines = generateDefines( defines );
 
@@ -316,8 +326,11 @@ function WebGLProgram( renderer, extensions, code, material, shader, parameters 
 
 	} else {
 
+		var attribute = this.needsGLSL300 ? 'in' : 'attribute';
+		var varying = this.needsGLSL300 ? 'out' : 'varying';
 		prefixVertex = [
 
+			this.needsGLSL300 ? '#define NEEDSGLSL300' : '',
 			'precision ' + parameters.precision + ' float;',
 			'precision ' + parameters.precision + ' int;',
 
@@ -375,36 +388,36 @@ function WebGLProgram( renderer, extensions, code, material, shader, parameters 
 			'uniform mat3 normalMatrix;',
 			'uniform vec3 cameraPosition;',
 
-			'attribute vec3 position;',
-			'attribute vec3 normal;',
-			'attribute vec2 uv;',
+			attribute + ' vec3 position;',
+			attribute + ' vec3 normal;',
+			attribute + ' vec2 uv;',
 
 			'#ifdef USE_COLOR',
 
-			'	attribute vec3 color;',
+			'	' + attribute + ' vec3 color;',
 
 			'#endif',
 
 			'#ifdef USE_MORPHTARGETS',
 
-			'	attribute vec3 morphTarget0;',
-			'	attribute vec3 morphTarget1;',
-			'	attribute vec3 morphTarget2;',
-			'	attribute vec3 morphTarget3;',
+			'	' + attribute + ' vec3 morphTarget0;',
+			'	' + attribute + ' vec3 morphTarget1;',
+			'	' + attribute + ' vec3 morphTarget2;',
+			'	' + attribute + ' vec3 morphTarget3;',
 
 			'	#ifdef USE_MORPHNORMALS',
 
-			'		attribute vec3 morphNormal0;',
-			'		attribute vec3 morphNormal1;',
-			'		attribute vec3 morphNormal2;',
-			'		attribute vec3 morphNormal3;',
+			'		' + attribute + ' vec3 morphNormal0;',
+			'		' + attribute + ' vec3 morphNormal1;',
+			'		' + attribute + ' vec3 morphNormal2;',
+			'		' + attribute + ' vec3 morphNormal3;',
 
 			'	#else',
 
-			'		attribute vec3 morphTarget4;',
-			'		attribute vec3 morphTarget5;',
-			'		attribute vec3 morphTarget6;',
-			'		attribute vec3 morphTarget7;',
+			'		' + attribute + ' vec3 morphTarget4;',
+			'		' + attribute + ' vec3 morphTarget5;',
+			'		' + attribute + ' vec3 morphTarget6;',
+			'		' + attribute + ' vec3 morphTarget7;',
 
 			'	#endif',
 
@@ -412,8 +425,8 @@ function WebGLProgram( renderer, extensions, code, material, shader, parameters 
 
 			'#ifdef USE_SKINNING',
 
-			'	attribute vec4 skinIndex;',
-			'	attribute vec4 skinWeight;',
+			'	' + attribute + ' vec4 skinIndex;',
+			'	' + attribute + ' vec4 skinWeight;',
 
 			'#endif',
 
@@ -423,6 +436,7 @@ function WebGLProgram( renderer, extensions, code, material, shader, parameters 
 
 		prefixFragment = [
 
+			this.needsGLSL300 ? '#define NEEDSGLSL300' : '',
 			customExtensions,
 
 			'precision ' + parameters.precision + ' float;',
@@ -515,6 +529,11 @@ function WebGLProgram( renderer, extensions, code, material, shader, parameters 
 
 	var vertexGlsl = prefixVertex + vertexShader;
 	var fragmentGlsl = prefixFragment + fragmentShader;
+
+	if (isWebGL2 && this.needsGLSL300) {
+	    vertexGlsl = '#version 300 es\n' + vertexGlsl;
+	    fragmentGlsl = '#version 300 es\n' + fragmentGlsl;
+	}
 
 	// console.log( '*VERTEX*', vertexGlsl );
 	// console.log( '*FRAGMENT*', fragmentGlsl );

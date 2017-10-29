@@ -52,7 +52,11 @@
 
 		<script type="x-shader/x-vertex" id="vertexShader">
 
+		  #if defined(NEEDSGLSL300)
+			out vec3 vWorldPosition;
+		  #else
 			varying vec3 vWorldPosition;
+		  #endif
 
 			void main() {
 
@@ -72,7 +76,11 @@
 			uniform float offset;
 			uniform float exponent;
 
+		  #if defined(NEEDSGLSL300)
+			in vec3 vWorldPosition;
+		  #else
 			varying vec3 vWorldPosition;
+		  #endif
 
 			void main() {
 
@@ -204,7 +212,7 @@
 
 				// RENDERER
 
-				renderer = new THREE.WebGLRenderer( { antialias: true } );
+				renderer = new THREE.WebGLRenderer( { antialias: true, webgl2: true } );
 				renderer.setPixelRatio( window.devicePixelRatio );
 				renderer.setSize( window.innerWidth, window.innerHeight );
 				container.appendChild( renderer.domElement );

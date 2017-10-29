@@ -37,8 +37,11 @@ function WebGLUtils( gl, extensions ) {
 		if ( p === HalfFloatType ) {
 
 			extension = extensions.get( 'OES_texture_half_float' );
+			if ( extension !== null ) {
+				var isWebGL2 = ( typeof window.WebGL2RenderingContext !== 'undefined' && gl instanceof window.WebGL2RenderingContext );
 
-			if ( extension !== null ) return extension.HALF_FLOAT_OES;
+				return isWebGL2 ? gl.HALF_FLOAT : extension.HALF_FLOAT_OES;
+			}
 
 		}
 
