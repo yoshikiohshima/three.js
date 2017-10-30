@@ -21408,7 +21408,7 @@
 				preserveDrawingBuffer: _preserveDrawingBuffer
 			};
 
-			_gl = _context || _canvas.getContext( _webglversion, contextAttributes );
+			_gl = _context || _canvas.getContext( _webglversion, contextAttributes ) || _canvas.getContext( 'experimental-webgl', contextAttributes );
 
 
 			if ( _gl === null ) {
