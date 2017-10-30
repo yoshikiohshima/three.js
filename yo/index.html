@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta charset=utf-8>
+		<title>Shadama 3D</title>
+		<style>
+			body { margin: 0; }
+			canvas { width: 100%; height: 100% }
+		</style>
+
+
+
+	</head>
+	<body>
+		<script src="../build/three.js"></script>
+		<script src="../yo/ohm.min.js"></script>
+		<script src="../yo/papaparse.min.js"></script>
+		<script src="../yo/shadama.js"></script>
+		<script src="../yo/shadama-tests.js"></script>
+		<script>
+
+		  var material, geometry, cube;
+		  var once = false;
+		  var shadama;
+
+		  var scene = new THREE.Scene();
+		  var camera = new THREE.PerspectiveCamera( 75, window.innerWidth / window.innerHeight, 0.1, 1000 );
+		  
+		  var renderer = new THREE.WebGLRenderer({webgl2: true, preserveDrawingBuffer: true});
+		  renderer.setSize( window.innerWidth, window.innerHeight );
+		  document.body.appendChild( renderer.domElement );
+
+		  geometry = new THREE.BoxBufferGeometry( 512, 512, 512 );
+		  material = new THREE.MeshBasicMaterial({color: 0x00004000, wireframe: true});
+
+		  cube = new THREE.Mesh( geometry, material );
+		  scene.add( cube );
+
+		  camera.position.z = 1000;
+		  camera.position.x = 200;
+		  camera.position.y = 50;
+		  shadama = ShadamaFactory({renderer: renderer}, 3, cube, "17-Airports.shadama");
+
+function animate() {
+	requestAnimationFrame( animate );
+	renderer.render( scene, camera );
+//	cube.rotateY(0.01);
+
+        shadama.step();
+}
+
+animate();
+		</script>
+	</body>
+</html>
+
