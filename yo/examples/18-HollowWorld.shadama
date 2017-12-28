@@ -1,8 +1,8 @@
 program "Hollow World"
 
 breed Shell (x, y, z, mx, my, mz, dx, dy, dz, r, g, b, a)
-breed Turtle (x, y, z, mx, my, mz, dx, dy, dz, cx, cy, cz, r, g, b, a)
-patch Field (x, y, z, dx, dy, dz)
+breed Turtle (x, y, z, mx, my, mz, dx, dy, dz, r, g, b, a, d)
+patch Field (x, y, z, ax, ay, az)
 
 def initShell() {
   this.x = 256;
@@ -34,10 +34,17 @@ def restorePos() {
   this.z = this.mz;
 }
 
-def setColor() {
+def setShellColor() {
   this.r = 0;
   this.g = 1;
   this.b = 0;
+  this.a = 0.8;
+}
+
+def setColor() {
+  this.r = 1;
+  this.g = 0;
+  this.b = 1;
   this.a = 1;
 }
 
@@ -47,19 +54,36 @@ def gotoZero() {
   this.z = 0;
 }
 
-def pickAndComp(field) {
+def pickAndComp(field, count) {
   var cx = field.x;
   var cy = field.y;
   var cz = field.z;
-  this.dx = this.mx - cx;
-  this.dy = this.my - cy;
-  this.dz = this.mz - cz;
+  var dx = this.mx - cx;
+  var dy = this.my - cy;
+  var dz = this.mz - cz;
+
+  var d2 = (dx * dx + dy * dy + dz * dz);
+  var ds = sqrt(d2);
+  
+  this.dx = dx / (ds * d2) / count * 100;
+  this.dy = dy / (ds * d2) / count * 100;
+  this.dz = dz / (ds * d2) / count * 100;
+
+//  this.dx = dx;
+//  this.dy = dy;
+//  this.dz = dz;
+}
+
+def resetA(field) {
+  field.ax = 0;
+  field.ay = 0;
+  field.az = 0;
 }
 
 def pickD(field) {
-  this.dx = field.dx;
-  this.dy = field.dy;
-  this.dz = field.dz;
+  this.dx = this.dx + field.ax;
+  this.dy = this.dy + field.ay;
+  this.dz = this.dz + field.az;
 }
 
 def goto(x, y, z) {
@@ -68,23 +92,32 @@ def goto(x, y, z) {
   this.z = z;
 }
 
+def setVec(dx, dy, dz) {
+  this.dx = dx;
+  this.dy = dy;
+  this.dz = dz;
+  this.d = 10000;
+}
+
 static setup() {
-  Shell.setCount(1000000);
+  Shell.setCount(400);
   Shell.fillRandomDir3("dx", "dy", "dz");
+//  Shell.setVec(0, 0, 1);
   Shell.initShell();
-  Shell.setColor();
+  Shell.setShellColor();
 
   Turtle.setCount(1);
-  Turtle.goto(256, 10, 500);
+  Turtle.goto(500, 256, 256);
+  Turtle.setVec(0.0, 0.7, 0);
   Turtle.setColor();
   
   var init = 0;
   var set = 0;
 }
 
-static step() {
+static loop() {
   var init = init + 1;
-  if (init == 2) {
+  if (init == 150) {
     set = 1;
     Shell.savePos();
   }
@@ -94,18 +127,18 @@ static step() {
     Turtle.savePos();
     Turtle.gotoZero();
     Turtle.storePos(Field);
+    Turtle.resetA(Field);
 
     Shell.gotoZero();
-    Shell.pickAndComp(Field);
-    Shell.increaseVoxel(Field, "dx", "dx");
-    // Shell.increasePatch(Field, "dy", "dy");
-    // Shell.increasePatch(Field, "dz", "dz");
+    Shell.pickAndComp(Field, Shell.count);
+    Shell.increaseVoxel(Field, "ax", "dx");
+    Shell.increasePatch(Field, "ay", "dy");
+    Shell.increasePatch(Field, "az", "dz");
     Shell.restorePos();
 
     Turtle.pickD(Field);
     Turtle.restorePos();
-    // Turtle.move();
-    // Turtle.render();
+    Turtle.move();
   }
   Shell.render();
   Turtle.render();
