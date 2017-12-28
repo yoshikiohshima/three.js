@@ -1,0 +1,112 @@
+program "Hollow World"
+
+breed Shell (x, y, z, mx, my, mz, dx, dy, dz, r, g, b, a)
+breed Turtle (x, y, z, mx, my, mz, dx, dy, dz, cx, cy, cz, r, g, b, a)
+patch Field (x, y, z, dx, dy, dz)
+
+def initShell() {
+  this.x = 256;
+  this.y = 256;
+  this.z = 256;
+}
+
+def move() {
+  this.x = this.x + this.dx;
+  this.y = this.y + this.dy;
+  this.z = this.z + this.dz;
+}
+
+def savePos() {
+  this.mx = this.x;
+  this.my = this.y;
+  this.mz = this.z;
+}
+
+def storePos(field) {
+  field.x = this.mx;
+  field.y = this.my;
+  field.z = this.mz;
+}
+
+def restorePos() {
+  this.x = this.mx;
+  this.y = this.my;
+  this.z = this.mz;
+}
+
+def setColor() {
+  this.r = 0;
+  this.g = 1;
+  this.b = 0;
+  this.a = 1;
+}
+
+def gotoZero() {
+  this.x = 0;
+  this.y = 0;
+  this.z = 0;
+}
+
+def pickAndComp(field) {
+  var cx = field.x;
+  var cy = field.y;
+  var cz = field.z;
+  this.dx = this.mx - cx;
+  this.dy = this.my - cy;
+  this.dz = this.mz - cz;
+}
+
+def pickD(field) {
+  this.dx = field.dx;
+  this.dy = field.dy;
+  this.dz = field.dz;
+}
+
+def goto(x, y, z) {
+  this.x = x;
+  this.y = y;
+  this.z = z;
+}
+
+static setup() {
+  Shell.setCount(1000000);
+  Shell.fillRandomDir3("dx", "dy", "dz");
+  Shell.initShell();
+  Shell.setColor();
+
+  Turtle.setCount(1);
+  Turtle.goto(256, 10, 500);
+  Turtle.setColor();
+  
+  var init = 0;
+  var set = 0;
+}
+
+static step() {
+  var init = init + 1;
+  if (init == 2) {
+    set = 1;
+    Shell.savePos();
+  }
+  if (set == 0) {
+    Shell.move();
+  } else {
+    Turtle.savePos();
+    Turtle.gotoZero();
+    Turtle.storePos(Field);
+
+    Shell.gotoZero();
+    Shell.pickAndComp(Field);
+    Shell.increaseVoxel(Field, "dx", "dx");
+    // Shell.increasePatch(Field, "dy", "dy");
+    // Shell.increasePatch(Field, "dz", "dz");
+    Shell.restorePos();
+
+    Turtle.pickD(Field);
+    Turtle.restorePos();
+    // Turtle.move();
+    // Turtle.render();
+  }
+  Shell.render();
+  Turtle.render();
+}
