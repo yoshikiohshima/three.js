@@ -38,7 +38,7 @@ def setShellColor() {
   this.r = 0;
   this.g = 1;
   this.b = 0;
-  this.a = 0.8;
+  this.a = 0.2;
 }
 
 def setColor() {
@@ -100,15 +100,14 @@ def setVec(dx, dy, dz) {
 }
 
 static setup() {
-  Shell.setCount(400);
+  Shell.setCount(100000);
   Shell.fillRandomDir3("dx", "dy", "dz");
-//  Shell.setVec(0, 0, 1);
   Shell.initShell();
   Shell.setShellColor();
 
   Turtle.setCount(1);
-  Turtle.goto(500, 256, 256);
-  Turtle.setVec(0.0, 0.7, 0);
+  Turtle.goto(256, 500, 256);
+  Turtle.setVec(0.6, 0.0, 0);
   Turtle.setColor();
   
   var init = 0;
@@ -132,8 +131,8 @@ static loop() {
     Shell.gotoZero();
     Shell.pickAndComp(Field, Shell.count);
     Shell.increaseVoxel(Field, "ax", "dx");
-    Shell.increasePatch(Field, "ay", "dy");
-    Shell.increasePatch(Field, "az", "dz");
+    Shell.increaseVoxel(Field, "ay", "dy");
+    Shell.increaseVoxel(Field, "az", "dz");
     Shell.restorePos();
 
     Turtle.pickD(Field);
