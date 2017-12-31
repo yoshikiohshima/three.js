@@ -85,8 +85,6 @@ function ShadamaFactory(frame, optDimension, parent, optDefaultProgName) {
     var showAllEnv;
     var degaussdemo;
 
-    var pendingLoads = [[], null]; // = [[], callback];
-
     var shaders = {
         "drawBreed.vert":
         `#version 300 es
@@ -224,9 +222,9 @@ function ShadamaFactory(frame, optDimension, parent, optDefaultProgName) {
         uniform sampler2D u_b;
         uniform sampler2D u_a;
 
-	uniform sampler2D u_d;
-	uniform float u_dotSize;
-	uniform bool u_use_vector;
+        uniform sampler2D u_d;
+        uniform float u_dotSize;
+        uniform bool u_use_vector;
 
         out vec4 v_color;
 
@@ -239,7 +237,7 @@ function ShadamaFactory(frame, optDimension, parent, optDefaultProgName) {
             vec3 normPos = dPos / u_resolution;
             vec3 clipPos = ((normPos + u_half) * 2.0 - 1.0) * (u_resolution.x / 2.0);
 
-	    vec4 mvPos = mvMatrix * vec4(clipPos, 1.0);
+            vec4 mvPos = mvMatrix * vec4(clipPos, 1.0);
 
             gl_Position = pMatrix * mvPos;
 
@@ -248,7 +246,6 @@ function ShadamaFactory(frame, optDimension, parent, optDefaultProgName) {
             float b = texelFetch(u_b, fc, 0).r;
             float a = texelFetch(u_a, fc, 0).r;
             v_color = vec4(r, g, b, a);
-
             gl_PointSize = ((u_use_vector ? texelFetch(u_d, fc, 0).r : u_dotSize) / -mvPos.z);
         }`,
 
@@ -306,7 +303,7 @@ function ShadamaFactory(frame, optDimension, parent, optDefaultProgName) {
             vec3 normPos = dPos / u_resolution;
             vec3 clipPos = ((normPos + u_half) * 2.0 - 1.0) * (u_resolution.x / 2.0);
 
-	    vec4 mvPos = mvMatrix * vec4(clipPos, 1.0);
+            vec4 mvPos = mvMatrix * vec4(clipPos, 1.0);
             gl_Position = pMatrix * mvPos;
             gl_PointSize = 24.0 * ( 24.0 / -mvPos.z );
 
@@ -446,19 +443,19 @@ function ShadamaFactory(frame, optDimension, parent, optDefaultProgName) {
             float _y = texelFetch(u_that_y, fc, 0).r;
             float _z = texelFetch(u_that_z, fc, 0).r;
 
-	    _x = floor(_x / v_step); // 8   //  [0..64), if originally within [0..512)
-	    _y = floor(_y / v_step); // 8
-	    _z = floor(_z / v_step); // 8
+            _x = floor(_x / v_step); // 8   //  [0..64), if originally within [0..512)
+            _y = floor(_y / v_step); // 8
+            _z = floor(_z / v_step); // 8
 
-	    int index = int(_z * v_resolution.x * v_resolution.y + _y * v_resolution.x + _x);
-	    vec2 _pos = vec2(index % int(u_resolution.x), index / int(u_resolution.x));
+            int index = int(_z * v_resolution.x * v_resolution.y + _y * v_resolution.x + _x);
+            vec2 _pos = vec2(index % int(u_resolution.x), index / int(u_resolution.x));
             vec2 oneToOne = ((_pos / u_resolution) + u_half) * 2.0 - 1.0;
 
             gl_Position = vec4(oneToOne, 0.0, 1.0);
             gl_PointSize = 1.0;
 
-	    v_value = u_use_vector ? texelFetch(u_texture, ivec2(a_index), 0).r : u_value;
-	}`,
+            v_value = u_use_vector ? texelFetch(u_texture, ivec2(a_index), 0).r : u_value;
+        }`,
         "increaseVoxel.frag":
         `#version 300 es
         precision highp float;
@@ -583,7 +580,7 @@ function ShadamaFactory(frame, optDimension, parent, optDefaultProgName) {
     }
 
     function increasePatchProgram() {
-        return makePrimitive("increasePatch", ["u_resolution", "u_half", "u_that_x", "u_that_y", "u_use_vector", "u_texture", "u_value"], patchVAO);
+        return makePrimitive("increasePatch", ["u_resolution", "u_half", "u_that_x", "u_that_y", "u_use_vector", "u_texture", "u_value"], breedVAO);
     }
 
     function increaseVoxelProgram() {
@@ -1164,6 +1161,7 @@ function ShadamaFactory(frame, optDimension, parent, optDefaultProgName) {
         this.statics = {};    // {name: function}
         this.staticsList = []; // [name];
         this.steppers = {};  // {name: name}
+        this.triggers = {};  // {triggerName: ShadamaTrigger}
         this.loadTime = 0.0;
 
         this.compilation = null;
@@ -1189,6 +1187,8 @@ function ShadamaFactory(frame, optDimension, parent, optDefaultProgName) {
         this.statics = {};
         this.staticsList = [];
         this.scripts = {};
+        this.triggers = {};
+        var newData = [];
         if (!source) {
             var scriptElement = document.getElementById(id);
             if(!scriptElement){return "";}
@@ -1217,6 +1217,7 @@ function ShadamaFactory(frame, optDimension, parent, optDefaultProgName) {
                 var js = entry[1];
                 this.statics[k] = this.evalShadama(js);
                 this.staticsList.push(k);
+                this.env[k] = new ShadamaFunction(k, this);
                 if (k === "setup") {
                     newSetupCode = src;
                 }
@@ -1231,6 +1232,23 @@ function ShadamaFactory(frame, optDimension, parent, optDefaultProgName) {
                     var func = dimension == 2 ? programFromTable : programFromTable3;
                     this.scripts[js[1]] = [ func(table, entry[1], entry[2], js[1]),
                                       table.insAndParamsAndOuts()];
+                } else if (js[0] === "event") {
+                    this.env[js[1]] = new ShadamaEvent();
+                } else if (js[0] === "trigger") {
+                    this.triggers[k] = new ShadamaTrigger(js[1], js[2]);
+                } else if (js[0] === "data") {
+                    this.env[js[1]] = new ShadamaEvent();
+                    if (js[3] == "image") {
+                        this.env[js[1]] = this.loadImage(js[2]);
+                    } else if (js[3] == "audio") {
+                        this.env[js[1]] = this.loadAudio(js[2]);
+                    }
+
+                    if (newData.length == 0) {
+                        newData = js[1];
+                    } else {
+                        newData = ["and", js[1], newData];
+                    }
                 }
             }
         }
@@ -1240,12 +1258,21 @@ function ShadamaFactory(frame, optDimension, parent, optDefaultProgName) {
             this.setupCode = newSetupCode;
         }
 
-        if (schemaChange) {
-            var success = this.callSetup();
-            if (!success) {return };
-        }
         this.populateList(this.staticsList);
-        this.runLoop();
+
+        // setup should be triggered in response to receicing 'load event',
+        // but for now we keep the old way
+
+        if (schemaChange) {
+            if (newData.length === 0) {
+                var success = this.callSetup();
+                if (!success) {return };
+            } else {
+                var trigger = new ShadamaTrigger(newData, ["step", "setup"]);
+                this.triggers["_trigger" + trigger.trigger.toString()] = trigger;
+            }
+        }
+//        this.runLoop();
         return source;
     }
 
@@ -1403,7 +1430,7 @@ function ShadamaFactory(frame, optDimension, parent, optDefaultProgName) {
     }
 
     Shadama.prototype.updateCode = function() {
-        if (!standalone) {return;}
+        if (!editor) {return;}
         var code = editor.getValue();
         this.loadShadama(null, code);
         this.maybeRunner();
@@ -1486,23 +1513,10 @@ function ShadamaFactory(frame, optDimension, parent, optDefaultProgName) {
         });
     }
 
-    function checkPending(obj) {
-        var ind = pendingLoads[0].indexOf(obj);
-        if (ind >= 0) {
-            pendingLoads[0].splice(ind, 1);
-        }
-        if (pendingLoads[0].length === 0) {
-            if (pendingLoads[1]) {
-                pendingLoads[1]();
-                pendingLoads[1] = null;
-            }
-        }
-    }
-
-    Shadama.prototype.initAudio = function(name, keyName) {
-        if (!standalone) {return;}
-        var location = window.location.toString();
+    Shadama.prototype.loadAudio = function(name) {
+        var event = new ShadamaEvent();
         var that = this;
+        var location = window.location.toString();
 
         if (!audioContext) {
             audioContext = new AudioContext();
@@ -1517,15 +1531,13 @@ function ShadamaFactory(frame, optDimension, parent, optDefaultProgName) {
             request.onload = function() {
                 audioContext.decodeAudioData(request.response,
                                              function(buffer) {
-                                                 that.env[keyName] = buffer;
-                                                 checkPending(request);
+                                                 event.setValue(buffer);
                                              },
                                              function(error) {
                                                  console.log(error);
-                                                 checkPending(request);
+                                                 event.setValue("");
                                              });
             }
-            pendingLoads[0].push(request);
             request.send();
         }
 
@@ -1535,11 +1547,13 @@ function ShadamaFactory(frame, optDimension, parent, optDefaultProgName) {
         } else {
             loadSound("http://tinlizzie.org/~ohshima/shadama2/" + name);
         }
+        return event;
     }
 
-    Shadama.prototype.initImage = function(name, keyName) {
-        if (!standalone) {return;}
+    Shadama.prototype.loadImage = function(name) {
+        var event = new ShadamaEvent();
         var that = this;
+
         var img = document.createElement("img");
         var tmpCanvas = document.createElement("canvas");
         var location = window.location.toString();
@@ -1552,9 +1566,9 @@ function ShadamaFactory(frame, optDimension, parent, optDefaultProgName) {
             img.crossOrigin = "Anonymous";
             img.onerror = function() {
                 console.log("no internet");
+                var newImage = that.emptyImageData(256, 256);
                 document.body.removeChild(img);
-                that.env[keyName] = that.emptyImageData(256, 256);
-                checkPending(img);
+                event.setValue(newImage);
             }
             img.src = "http://tinlizzie.org/~ohshima/shadama2/" + name;
         }
@@ -1565,54 +1579,57 @@ function ShadamaFactory(frame, optDimension, parent, optDefaultProgName) {
             tmpCanvas.width = img.width;
             tmpCanvas.height = img.height;
             tmpCanvas.getContext('2d').drawImage(img, 0, 0);
-            that.env[keyName] = tmpCanvas.getContext('2d').getImageData(0, 0, img.width, img.height);
+            var newImage = tmpCanvas.getContext('2d').getImageData(0, 0, img.width, img.height);
             document.body.removeChild(img);
-            checkPending(img);
+            event.setValue(newImage);
         }
-        pendingLoads[0].push(img);
         document.body.appendChild(img);
+        return event;
     }
 
-    Shadama.prototype.loadCSV = function(name, keyName) {
-        var xobj = new XMLHttpRequest();
+    Shadama.prototype.loadCSV = function(name) {
         var that = this;
+        return (function() {
+            var xobj = new XMLHttpRequest();
+            var event = new ShadamaEvent();
 
-        // three ways to specify name:
-        // 1. fully qualified path, starting with "http"
-        // 2. [if window.location starts with "http"] path fragment appended to working directory
-        // 3. [otherwise - assuming standalone] path fragment appended to shadama2 directory on tinlizzie
-        var dir;
-        if (name.startsWith("http")) {  // fully qualified
-            dir = name;
-        } else {
-            var location = window.location.toString();
-            if (location.startsWith("http")) {
-                var slash = location.lastIndexOf("/");
-                dir = location.slice(0, slash) + "/" + name;
+            // three ways to specify name:
+            // 1. fully qualified path, starting with "http"
+            // 2. [if window.location starts with "http"] path fragment appended to working directory
+            // 3. [otherwise - assuming standalone] path fragment appended to shadama2 directory on tinlizzie
+            var dir;
+            if (name.startsWith("http")) {  // fully qualified
+                dir = name;
             } else {
-                dir = "http://tinlizzie.org/~ohshima/shadama2/" + name;
+                var location = window.location.toString();
+                if (location.startsWith("http")) {
+                    var slash = location.lastIndexOf("/");
+                    dir = location.slice(0, slash) + "/" + name;
+                } else {
+                    dir = "http://tinlizzie.org/~ohshima/shadama2/" + name;
+                }
             }
-        }
-        xobj.open("GET", dir, true);
-        xobj.responseType = "blob";
-
-        xobj.onload = function(oEvent) {
-            var blob = xobj.response;
-            var file = new File([blob], dir);
-            Papa.parse(file, {complete: resultCSV, error: errorCSV});
-        };
-
-        function errorCSV(error, file) {
-            console.log("ERROR:", error, file);
-            checkPending(xobj);
-        }
-
-        function resultCSV(result) {
-            that.env[keyName] = result.data;
-            checkPending(xobj);
-        }
-        pendingLoads[0].push(xobj);
-        xobj.send();
+            xobj.open("GET", dir, true);
+            xobj.responseType = "blob";
+            
+            xobj.onload = function(oEvent) {
+                var blob = xobj.response;
+                var file = new File([blob], dir);
+                Papa.parse(file, {complete: resultCSV, error: errorCSV});
+            };
+            
+            function errorCSV(error, file) {
+                console.log("ERROR:", error, file);
+                event.setValue("");
+            }
+            
+            function resultCSV(result) {
+                var data = result.data;
+                event.setValue(data);
+            }
+            xobj.send();
+            return event;
+        })();
     }
 
     Shadama.prototype.initDisplay = function() {
@@ -1625,21 +1642,7 @@ function ShadamaFactory(frame, optDimension, parent, optDefaultProgName) {
         this.env.width = FW;
         this.env.height = FH;
 
-        pendingLoads[1] = callback;
-        if (standalone) {
-            this.initAudio("degauss.mp3", "degauss");
-            this.initImage("blur-blue.png", "blurBlue");
-            this.initImage("presentation.png", "presentation");
-            this.initImage("button.png", "button");
-            this.initImage("ahiru.png", "image");
-            this.initImage("rightbutton.png", "right");
-            this.initImage("goals.png", "goals");
-            this.initImage("futurework.png", "futurework");
-            this.initImage("maccready.png", "maccready");
-        } else {
-            this.loadCSV("airports.dat", "Airports");
-//          callback();
-        }
+        callback();
     }
 
     Shadama.prototype.makeClock = function() {
@@ -1872,10 +1875,6 @@ function ShadamaFactory(frame, optDimension, parent, optDefaultProgName) {
         }
         this.removeAll();
         this.addAll(watcherElements);
-
-        if (this.statics["loop"]) {
-            this.startScript("loop");
-        }
     }
 
     Shadama.prototype.addEnv = function(key, asset) {
@@ -1884,7 +1883,7 @@ function ShadamaFactory(frame, optDimension, parent, optDefaultProgName) {
 
     Shadama.prototype.runLoop = function() {
         if (this.statics["loop"]) {
-            this.steppers["loop"] = "loop";
+            this.startScript("loop");
         }
     }
 
@@ -1933,9 +1932,11 @@ function ShadamaFactory(frame, optDimension, parent, optDefaultProgName) {
         }
     }
 
-    Display.prototype.playSound = function(name) {
-        var buffer = this.shadama.env[name];
+    Display.prototype.playSound = function(buffer) {
         if (!buffer) {return}
+        if (buffer.constructor === ShadamaEvent) {
+            buffer = buffer.value;
+        }
         var source = audioContext.createBufferSource(); // creates a sound source
         source.buffer = buffer;                    // tell the source which sound to play
         source.connect(audioContext.destination);       // connect the source to the context's destination (the speakers)
@@ -2078,6 +2079,17 @@ function ShadamaFactory(frame, optDimension, parent, optDefaultProgName) {
         }
 
         fillImage(xName, yName, rName, gName, bName, aName, imagedata) {
+            if (imagedata === undefined) {
+                var error = new Error("runtime error");
+                error.reason = `imagedata is not available`;
+                error.expected = `imagedata is not available`;
+                error.pos = -1;
+                error.src = null;
+                throw error;
+            }
+            if (imagedata.constructor === ShadamaEvent) {
+                imagedata = imagedata.value;
+            }
             var xDim = imagedata.width;
             var yDim = imagedata.height;
             this.fillSpace(xName, yName, xDim, yDim);
@@ -2105,6 +2117,9 @@ function ShadamaFactory(frame, optDimension, parent, optDefaultProgName) {
 
         loadData(data) {
             // assumes that the first line is the schema of the table
+            if (data.constructor === ShadamaEvent) {
+                data = data.value;
+            }
             var schema = data[0];
 
             for (var k in this.own) {
@@ -2218,25 +2233,25 @@ function ShadamaFactory(frame, optDimension, parent, optDefaultProgName) {
             state.bindTexture(gl.TEXTURE_2D, breed.a);
             gl.uniform1i(prog.uniLocations["u_a"], 6);
 
-	    var maybeD = breed["d"];
-	    if (maybeD !== undefined) {
-		if (typeof maybeD == "number") {
-		    gl.uniform1i(prog.uniLocations["u_use_vector"], 0);
-		    gl.uniform1f(prog.uniLocations["u_dotSize"], maybeD);
-		    gl.uniform1i(prog.uniLocations["u_d"], 0);
-		} else {
-		    state.activeTexture(gl.TEXTURE7);
-		    state.bindTexture(gl.TEXTURE_2D, maybeD);
-		    gl.uniform1i(prog.uniLocations["u_d"], 7);
+            var maybeD = breed["d"];
+            if (maybeD !== undefined) {
+                if (typeof maybeD == "number") {
+                    gl.uniform1i(prog.uniLocations["u_use_vector"], 0);
+                    gl.uniform1f(prog.uniLocations["u_dotSize"], maybeD);
+                    gl.uniform1i(prog.uniLocations["u_d"], 0);
+                } else {
+                    state.activeTexture(gl.TEXTURE7);
+                    state.bindTexture(gl.TEXTURE_2D, maybeD);
+                    gl.uniform1i(prog.uniLocations["u_d"], 7);
 
-		    gl.uniform1i(prog.uniLocations["u_use_vector"], 1);
-		    gl.uniform1f(prog.uniLocations["u_dotSize"], 0);
-		}
-	    } else {
-		gl.uniform1i(prog.uniLocations["u_use_vector"], 0);
-		gl.uniform1f(prog.uniLocations["u_dotSize"], 16);
-		gl.uniform1i(prog.uniLocations["u_d"], 0);
-	    }
+                    gl.uniform1i(prog.uniLocations["u_use_vector"], 1);
+                    gl.uniform1f(prog.uniLocations["u_dotSize"], 0);
+                }
+            } else {
+                gl.uniform1i(prog.uniLocations["u_use_vector"], 0);
+                gl.uniform1f(prog.uniLocations["u_dotSize"], 16);
+                gl.uniform1i(prog.uniLocations["u_d"], 0);
+            }
 
             gl.uniformMatrix4fv(uniLocations["mvMatrix"], false, mvMatrix.elements);
             gl.uniformMatrix4fv(uniLocations["pMatrix"], false, pMatrix.elements);
@@ -2620,8 +2635,8 @@ function ShadamaFactory(frame, optDimension, parent, optDefaultProgName) {
                 console.log(pos, msg);
             } else {
                 console.log(error);
-	    }
-	}
+            }
+        }
     }
 
     Shadama.prototype.setShowError = function(func) {
@@ -2651,6 +2666,9 @@ function ShadamaFactory(frame, optDimension, parent, optDefaultProgName) {
 
     Shadama.prototype.step = function() {
         this.env["time"] = (window.performance.now() / 1000) - this.loadTime;
+        for (var k in this.triggers) {
+            this.triggers[k].maybeFire(this);
+        }
         try {
             for (var k in this.steppers) {
                 var func = this.statics[k];
@@ -2768,11 +2786,14 @@ function ShadamaFactory(frame, optDimension, parent, optDefaultProgName) {
     var shadamaGrammar = String.raw`
 Shadama {
   TopLevel
-    = ProgramDecl? (Breed | Patch | Script | Helper | Static)*
+    = ProgramDecl? (Breed | Patch | Event | On | Data | Script | Helper | Static)*
 
   ProgramDecl = program string
   Breed = breed ident "(" Formals ")"
   Patch = patch ident "(" Formals ")"
+  Event = event ident
+  On = on TriggerExpression arrow (start|stop)? ident
+  Data = data ident "(" string "," string ")"
   Script = def ident "(" Formals ")" Block
   Helper = helper ident "(" Formals ")" Block
   Static = static ident "(" Formals ")" Block
@@ -2808,6 +2829,11 @@ Shadama {
 
   LeftHandSideExpression
     = ident "." ident -- field
+    | ident
+
+  TriggerExpression = 
+    | TriggerExpression "&&" ident                      -- and
+    | TriggerExpression "||" ident                      -- or
     | ident
 
   Expression = LogicalExpression
@@ -2890,6 +2916,12 @@ Shadama {
   static = "static" ~identifierPart
   program = "program" ~identifierPart
   return = "return" ~identifierPart
+  event = "event" ~identifierPart
+  on = "on" ~identifierPart
+  arrow = "=>" ~identifierPart
+  start = "start" ~identifierPart
+  stop = "stop" ~identifierPart
+  data = "data" ~identifierPart
 
   empty =
   space
@@ -2963,6 +2995,9 @@ Shadama {
                 ["param", null, "name"]], true),
             "loadData": new SymTable([
                 ["param", null, "data"]], true),
+            "start": new SymTable([], true),
+            "step": new SymTable([], true),
+            "stop": new SymTable([], true),
         };
 
         primitives = {};
@@ -2983,6 +3018,11 @@ Shadama {
             for (var k in primitives) {
                 obj[k] = primitives[k];
             }
+
+            obj["mousedown"] = {x:0, y:0};
+            obj["mousemove"] = {x:0, y:0};
+            obj["mouseup"] = {x:0, y:0};
+
         }
 
         function processHelper(symDict) {
@@ -3032,6 +3072,9 @@ Shadama {
                         if (ctor == "Script" || ctor == "Static" || ctor == "Helper") {
                             addAsSet(result, d);
                         }
+                        if (ctor == "On" || ctor == "Event" || ctor == "Data") {
+                            addAsSet(result, d);
+                        }
                     }
                     processHelper(result);
                     globalTable = result;
@@ -3053,6 +3096,32 @@ Shadama {
                     var table = new SymTable();
                     fs.symTable(table);
                     table.process();
+                    return {[n.sourceString]: table};
+                },
+
+                Event(_e, n) {
+                    var table = new SymTable();
+                    table.beEvent(n.sourceString);
+                    return {[n.sourceString]: table};
+                },
+
+                On(_o, t, _a, optK, n) {
+                    var table = new SymTable();
+                    var trigger = t.trigger();
+                    if (optK.children.length > 0) {
+                        var k = optK.children[0].sourceString;
+                    } else {
+                        k = "step";
+                    }
+                    table.beTrigger(trigger, [k, n.sourceString]);
+                    return {["_trigger" + trigger.toString()]: table};
+                },
+
+                Data(_d, n, _o, s1, _a, s2, _c) {
+                    var table = new SymTable();
+                    var realS1 = s1.children[1].sourceString;
+                    var realS2 = s2.children[1].sourceString;
+                    table.beData(n.sourceString, realS1, realS2);
                     return {[n.sourceString]: table};
                 },
 
@@ -3100,7 +3169,6 @@ Shadama {
 
                 VariableDeclaration(n, optI) {
                     var table = this.args.table;
-                    var r = {["var." + n.sourceString]: ["var", null, n.sourceString]};
                     table.add("var", null, n.sourceString);
                     if (optI.children.length > 0) {
                         optI.children[0].symTable(table);
@@ -3195,6 +3263,21 @@ Shadama {
             vert.push(")");
         };
 
+        s.addOperation(
+            "trigger",
+            {
+                TriggerExpression_and(t, _op, i) {
+                    return ["and", t, i.sourceString];
+                },
+                TriggerExpression_or(t, _op, i) {
+                    return ["or", t, i.sourceString];
+                },
+                TriggerExpression(i) {
+                    return i.sourceString;
+                }
+            }
+        );
+        
         s.addOperation(
             "glsl_script_formals",
             {
@@ -3704,6 +3787,31 @@ uniform sampler2D u_that_y;
                     return {[n.sourceString]: [table[n.sourceString], "", "" ,js]};
                 },
 
+                Event(_e, n) {
+                    var table = this.args.table;
+                    var js = ["event", n.sourceString];
+                    return {[n.sourceString]: [table[n.sourceString], "", "", js]};
+                },
+
+                On(_o, t, _a, optK, k) {
+                    var table = this.args.table;
+                    var trigger = t.trigger();
+                    var key = "_trigger" + trigger.toString();
+                    var entry = table[key];
+                    var js = ["trigger", entry.trigger, entry.triggerAction];
+                    return {[key]: [table[key], "", "", js]};
+                },
+
+                Data(_d, i, _o, s1, _a, s2, _c) {
+                    var table = this.args.table;
+                    var key = i.sourceString;
+                    var entry = table[key];
+                    var realS1 = s1.children[1].sourceString;
+                    var realS2 = s2.children[1].sourceString;
+                    var js = ["data", i.sourceString, realS1, realS2];
+                    return {[key]: [entry, "", "", js]};
+                },
+
                 Script(_d, n, _o, ns, _c, b) {
                     var inTable = this.args.table;
                     var table = inTable[n.sourceString];
@@ -4134,6 +4242,9 @@ uniform sampler2D u_that_y;
                     var js = this.args.js;
                     var method = this.args.method;
                     var isOther = this.args.isOther;
+                    var symTable = new SymTable();
+                    symTable.beStaticVariable(i.sourceString);
+                    table[n.sourceString] = symTable;
                     js.push("env.");
                     js.push(n.sourceString);
                     js.pushWithSpace("= ");
@@ -4149,6 +4260,15 @@ uniform sampler2D u_that_y;
                     var js = this.args.js;
                     var method = this.args.method;
                     var isOther = this.args.isOther;
+                    var left = table[l.sourceString];
+                    if (!left || (!left.isEvent() && !left.isStaticVariable())) {
+//                            var error = new Error("semantic error");
+//                            error.reason = `assignment into undeclared static variable or event ${l.sourceString}`;
+//                            error.expected = `assignment into undeclared static variable or event ${l.sourceString}`;
+//                            error.pos = l.source.endIdx;
+//                            error.src = null;
+//                            throw error;
+                    }
                     js.push("env.");
                     js.push(l.sourceString);
                     js.pushWithSpace("= ");
@@ -4317,7 +4437,7 @@ uniform sampler2D u_that_y;
 
                     var displayBuiltIns = ["clear", "playSound", "loadProgram"];
 
-                    var builtIns = ["draw", "render", "setCount", "fillRandom", "fillSpace", "fillCuboid", "fillRandomDir", "fillRandomDir3", "fillImage", "loadData", "diffuse", "increasePatch", "increaseVoxel"];
+                    var builtIns = ["draw", "render", "setCount", "fillRandom", "fillSpace", "fillCuboid", "fillRandomDir", "fillRandomDir3", "fillImage", "loadData", "start", "stop", "step", "diffuse", "increasePatch", "increaseVoxel"];
                     var myTable = table[n.sourceString];
 
                     var actuals = as.static_method_inner(table, null, method, false);
@@ -4397,6 +4517,92 @@ uniform sampler2D u_that_y;
                 js.push(callProgram);
             },
         });
+    }
+
+    function shouldFire(trigger, env) {
+        if (typeof trigger == "string") {
+            var evt = env[trigger];
+            return evt && evt.ready;
+        } else {
+            var key = trigger[0];
+            if (key == "and") {
+                return shouldFire(trigger[1], env) && shouldFire(trigger[2], env);
+            } else if (key == "and") {
+                return shouldFire(trigger[1], env) || shouldFire(trigger[2], env);
+            } else {
+                return false;
+            }
+        }
+    }
+
+    function resetTrigger(trigger, env) {
+        if (typeof trigger == "string") {
+            var evt = env[trigger];
+            if (evt) {
+                evt.ready = false;
+            }
+        } else {
+            resetTrigger(trigger[1], env);
+            resetTrigger(trigger[2], env);
+        }
+    }
+
+    class ShadamaFunction {
+        constructor(name, shadama) {
+            this.name = name;
+            this.shadama = shadama;
+        }
+
+        start() {
+            this.shadama.startScript(this.name);
+        }
+
+        stop() {
+            this.shadama.stopScript(this.name);
+        }
+
+        step() {
+            this.shadama.once(this.name);
+        }
+    }
+
+    class ShadamaEvent {
+        constructor() {
+            this.value = undefined;
+            this.ready = false;
+        }
+
+        setValue(value) {
+            this.value = value;
+            this.ready = true;
+        }
+
+        reset() {
+            this.ready = false;
+        }
+    }
+
+    class ShadamaTrigger {
+        constructor(trigger, triggerAction) {
+            this.trigger = trigger;
+            this.triggerAction = triggerAction;
+        }
+
+        maybeFire(shadama) {
+            var env = shadama.env;
+            if (shouldFire(this.trigger, env)) {
+                resetTrigger(this.trigger, env);
+                var type = this.triggerAction[0];
+                var name = this.triggerAction[1];
+                if (type == "start") {
+                    shadama.startScript(name);
+                } else if (type == "stop") {
+                    shadama.stopScript(this.triggerAction[1]);
+                } else if (type == "step") {
+                    shadama.once(name);
+                }
+            }
+        }
     }
 
     class OrderedPair {
@@ -4506,6 +4712,38 @@ uniform sampler2D u_that_y;
 
         beStatic() {
             this.type = "static";
+        }
+
+        beEvent(name) {
+            this.type = "event";
+            this.eventName = name;
+        }
+
+        isEvent() {
+            return this.type === "event";
+        }
+
+        beStaticVariable(name) {
+            this.type = "staticVar";
+            this.staticVarName = name;
+        }
+
+        isStaticVariable() {
+            return this.type == "staticVar";
+        }
+
+        beTrigger(trigger, action) {
+            // trigger: name | ["and", trigger, triger] | [or trigger, trigger]
+            // action ["start"|"step"|"stop", static name]
+            this.type = "trigger";
+            this.trigger = trigger;
+            this.triggerAction = action;
+        }
+
+        beData(name, s1, s2) {
+            this.type = "data";
+            this.eventName = name;
+            this.eventSource = [s1, s2]; // not really used;
         }
 
         process() {
