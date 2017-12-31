@@ -5,6 +5,8 @@ breed Airport (Latitude, Longitude, Altitude, x, y, z, nx, ny, nz, r, g, b, a)
 patch Place(x, y, z)
 breed Plane (x, y, z, r, g, b, a, p0x, p0y, p0z, p1x, p1y, p1z, dot, omega, t, step, rand)
 
+data Airports("airports.dat", "csv")
+
 def setColor() {
   this.r = this.x / 512.0;
   this.g = this.y / 512.0;
@@ -202,6 +204,8 @@ static setup() {
 //  Plane.loadPlace(Place, 1);
 //  Plane.maybeComputeDist();
 //  Plane.maybeInitT();
+
+  loop.start();
 }
 
 static loop() {
