@@ -1243,7 +1243,6 @@ function ShadamaFactory(frame, optDimension, parent, optDefaultProgName) {
                     } else if (js[3] == "audio") {
                         this.env[js[1]] = this.loadAudio(js[2]);
                     } else if (js[3] == "csv") {
-                        debugger;
                         this.env[js[1]] = this.loadCSV(js[2]);
                     }
 
