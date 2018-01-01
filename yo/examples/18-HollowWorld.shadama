@@ -96,7 +96,7 @@ def setVec(dx, dy, dz) {
   this.dx = dx;
   this.dy = dy;
   this.dz = dz;
-  this.d = 10000;
+  this.d = 400;
 }
 
 static setup() {
@@ -112,6 +112,7 @@ static setup() {
   
   var init = 0;
   var set = 0;
+  loop.start();
 }
 
 static loop() {
