@@ -1400,6 +1400,74 @@ function ShadamaFactory(frame, optDimension, parent, optDefaultProgName) {
         return debugArray1;
     }
 
+    Shadama.prototype.readValues = function(object, name, x, y, w, h) {
+        var forBreed = object.constructor == Breed;
+        var maxWidth = forBreed ? T : FW;
+        var maxHeight = forBreed ? T : FH;
+
+	if (x < 0 || y < 0 || x >= maxWidth || y >= maxHeight
+	    || x + w >= maxWidth || y + h >= maxHeight) {
+            var error = new Error("runtime error");
+            error.reason = `coordiate is out of bounds`;
+            error.expected = `coordiate is out of bounds`;
+            error.pos = -1;
+            error.src = null;
+            throw error;
+	}
+
+        var prog = programs[forBreed ? "debugBreed" : "debugPatch"];
+
+        if (forBreed) {
+            setTargetBuffer(framebufferDBreed, debugTextureBreed);
+        } else {
+            setTargetBuffer(framebufferDPatch, debugTexturePatch);
+        }
+
+        state.useProgram(prog.program);
+        gl.bindVertexArray(prog.vao);
+
+        var tex = object[name];
+
+        state.activeTexture(gl.TEXTURE0);
+        state.bindTexture(gl.TEXTURE_2D, tex);
+
+        if (standalone) {
+            gl.viewport(0, 0, maxWidth, maxHeight);
+        }
+        gl.uniform1i(prog.uniLocations["u_value"], 0);
+        gl.uniform2f(prog.uniLocations["u_half"], 0.5/maxWidth, 0.5/maxHeight);
+
+        if (!standalone) {
+            renderer.setClearColor(new THREE.Color(0x000000));
+            renderer.clearColor();
+        } else {
+            gl.clearColor(0.0, 0.0, 0.0, 0.0);
+            gl.clear(gl.COLOR_BUFFER_BIT);
+        }
+
+        noBlend();
+
+        gl.drawArrays(gl.POINTS, 0, maxWidth * maxHeight);
+        gl.flush();
+
+        debugArray = new Float32Array(w * h * 4);
+        debugArray1 = new Float32Array(w * h);
+        gl.readPixels(x, y, w, h, gl.RGBA, gl.FLOAT, debugArray, 0);
+
+        setTargetBuffer(null, null);
+        gl.bindVertexArray(null);
+
+	if (w == 1 && h == 1) {
+	    return debugArray[0];
+	}
+
+        for (var i = 0; i < w * h; i++) {
+            debugArray1[i] = debugArray[i * 4 + 0];
+        }
+
+        return debugArray1;
+    }
+
     Shadama.prototype.resetSystem = function() {
         for (var s in this.steppers) {
             var e = this.detectEntry(s);
@@ -1598,7 +1666,6 @@ function ShadamaFactory(frame, optDimension, parent, optDefaultProgName) {
         return (function() {
             var xobj = new XMLHttpRequest();
             var event = new ShadamaEvent();
-
             var location = window.location.toString();
             var dir;
             if (name.startsWith("http")) {
@@ -2389,6 +2456,11 @@ function ShadamaFactory(frame, optDimension, parent, optDefaultProgName) {
             patch[N + name] = src;
         }
 
+	readValues(n, x, y, w, h) {
+	    var val = shadama.readValues(this, n, x, y, w, h);
+	    return new ShadamaEvent().setValue(val);
+	}
+
         setCount(n) {
             var oldCount = this.count;
             if (n < 0 || !n) {
@@ -2546,6 +2618,11 @@ function ShadamaFactory(frame, optDimension, parent, optDefaultProgName) {
             this[name] = dst;
             this[N + name] = src;
         }
+
+	readValues(n, x, y, w, h) {
+	    var val = shadama.readValues(this, n, x, y, w, h);
+	    return new ShadamaEvent().setValue(val);
+	}
     }
 
     Shadama.prototype.cleanUpEditorState = function() {
@@ -3007,6 +3084,12 @@ Shadama {
                 ["param", null, "name"]], true),
             "loadData": new SymTable([
                 ["param", null, "data"]], true),
+            "readValues": new SymTable([
+                ["param", null, "name"],
+                ["param", null, "x"],
+                ["param", null, "y"],
+                ["param", null, "w"],
+                ["param", null, "h"]], true),
             "start": new SymTable([], true),
             "step": new SymTable([], true),
             "stop": new SymTable([], true),
@@ -4449,7 +4532,7 @@ uniform sampler2D u_that_y;
 
                     var displayBuiltIns = ["clear", "playSound", "loadProgram"];
 
-                    var builtIns = ["draw", "render", "setCount", "fillRandom", "fillSpace", "fillCuboid", "fillRandomDir", "fillRandomDir3", "fillImage", "loadData", "start", "stop", "step", "diffuse", "increasePatch", "increaseVoxel"];
+                    var builtIns = ["draw", "render", "setCount", "fillRandom", "fillSpace", "fillCuboid", "fillRandomDir", "fillRandomDir3", "fillImage", "loadData", "readValues", "start", "stop", "step", "diffuse", "increasePatch", "increaseVoxel"];
                     var myTable = table[n.sourceString];
 
                     var actuals = as.static_method_inner(table, null, method, false);
@@ -4587,6 +4670,7 @@ uniform sampler2D u_that_y;
         setValue(value) {
             this.value = value;
             this.ready = true;
+	    return this;
         }
 
         reset() {
