@@ -1,71 +1,54 @@
 program "Airports"
 
-breed Airport (Latitude, Longitude, Altitude, x, y, z, nx, ny, nz, r, g, b, a)
+breed Airport (Latitude:float, Longitude:float, Altitude:float, pos:vec4, n:vec4, color:vec4)
 
-patch Place(x, y, z)
-breed Plane (x, y, z, r, g, b, a, p0x, p0y, p0z, p1x, p1y, p1z, dot, omega, t, step, rand)
+patch Place(pos:vec4)
+breed Plane (pos:vec4, color:vec4, p0:vec4, p1:vec4, dot:float, omega:float, t:float, step:float, rand:float)
 
 data Airports("airports.dat", "csv")
 
 def setColor() {
-  this.r = this.x / 512.0;
-  this.g = this.y / 512.0;
-  this.b = this.z / 512.0;
-  this.a = 1.0;
+  this.color = vec4(this.pos:vec4.xyz / 512.0, 1)
 }
 
 def setNormalLocation() {
-  var la = this.Latitude;  // [-90, 90]
-  var lo = this.Longitude; // [-180, 180]
+  var la = this.Latitude:float  // [-90, 90]
+  var lo = this.Longitude:float // [-180, 180]
   //var al = this.Altitude;
 
-  la = la * 3.141592653589793 / 180.0;  //  [-pi/2, pi/2]
-  lo = lo * 3.141592653589793 / 180.0;  //  [-pi, pi]
+  la = la * 3.141592653589793 / 180.0  //  [-pi/2, pi/2]
+  lo = lo * 3.141592653589793 / 180.0  //  [-pi, pi]
 
-  this.nx = cos(la) * sin(lo);
-  this.nz = cos(la) * cos(lo);
-  this.ny = sin(la);
+  this.n = vec4(cos(la) * sin(lo), cos(la) * cos(lo), sin(la), 0)
 }
 
-def setPlace(place) {
-  place.x = this.nx;
-  place.y = this.ny;
-  place.z = this.nz;
+def setPlace(place:object) {
+  place.pos = this.n:vec4
 }
-
 
 def setLocation() {
   var r = 200;
-  this.y = this.ny * r + 256;
-  this.x = this.nx * r + 256;
-  this.z = this.nz * r + 256;
+  this.pos = this.n:vec4 * r + 256
 }
 
 def planeColor() {
-  this.r = 1.0;
-  this.g = 1.0;
-  this.b = 1.0;
-  this.a = 1.0;
+  this.color = vec4(1, 1, 1, 1)
 }
 
-def maybeGoToRandomPlace(n, r) {
-  if (this.t < 0) {
+def maybeGoToRandomPlace(n:float, r:float) {
+  if (this.t:float < 0) {
     var ind = floor(random(a_index.x * r) * n);
     var x = (mod(ind, 64 * 64)) * 8;
     var y = mod(floor(ind / 64), 64) * 8;
     var z = floor(ind / (64 * 64)) * 8;
 
-    this.x = x;
-    this.y = y;
-    this.z = z;
+    this.pos = vec4(x, y, z, 0)
   }
 }
 
 def maybeGoToAPlace() {
-  if (this.t < 0) {
-    this.x = 10;
-    this.y = 1;
-    this.z = 1;
+  if (this.t:float < 0) {
+    this.pos = vec4(10, 1, 1, 0)
   }
 }
 
@@ -79,12 +62,10 @@ def maybeGoToARegularPlace() {
   var y = mod(floor(ind / 64), 64) * 8;
   var z = floor(ind / (64 * 64)) * 8;
 
-  this.x = x;
-  this.y = y;
-  this.z = z;
+  this.pos = vec4(x, y, z, 0)
 }
 
-def maybeGoToBRegularPlace(n) {
+def maybeGoToBRegularPlace(n:float) {
   var ax = a_index.x;
   var ay = a_index.y;
 
@@ -94,109 +75,89 @@ def maybeGoToBRegularPlace(n) {
   var y = mod(floor(ind / 64), 64) * 8;
   var z = floor(ind / (64 * 64)) * 8;
 
-  this.x = 63-x;
-  this.y = 63-y;
-  this.z = z;
+  this.pos = vec4(63-x, 63-y, z, 0)
 }
 
-def loadPlace(place, isDest) {
-  if (this.t < 0) {
-    var x = place.x;
-    var y = place.y;
-    var z = place.z;
+def loadPlace(place:object, isDest:float) {
+  if (this.t:float < 0) {
+    var pos = place.pos:vec4;
 
     if (isDest == 1) {
-      this.p1x = x;
-      this.p1y = y;
-      this.p1z = z;
+      this.p1 = pos
     } else {
-      this.p0x = x;
-      this.p0y = y;
-      this.p0z = z;
+      this.p0 = pos
     }
   }
 }
 
 def maybeComputeDist() {
-  if (this.t < 0) {
-    var p0x = this.p0x;
-    var p0y = this.p0y;
-    var p0z = this.p0z;
+  if (this.t:float < 0) {
+    var p0 = this.p0:vec4
 
-    var p1x = this.p1x;
-    var p1y = this.p1y;
-    var p1z = this.p1z;
+    var p1 = this.p1:vec4
 
-    var dot =  p0x * p1x + p0y * p1y + p0z * p1z;
-    var omega = acos(dot);
+    var dot = dot(p0, p1)
+    var omega = acos(dot)
 
-    this.dot = dot;
-    this.omega = omega;
-    this.step = (3 / 1000.0) / omega;
+    this.dot = dot
+    this.omega = omega
+    this.step = (3 / 1000.0) / omega
   }
 }
 
 def initT() {
-  this.t = -1;
+  this.t = -1
 }
 
 def maybeInitT() {
-  if (this.t < 0) {
-     this.t = 0;
+  if (this.t:float < 0) {
+     this.t = 0
   }
 }
 
 def incrT() {
-  var t = this.t;
+  var t = this.t:float
   if (t >= 0) {
-    t = t + this.step;
+    t = t + this.step:float
   }
   if (t > 1.0) {
-    t = -1;
+    t = -1
   }
-  this.t = t;
+  this.t = t
 }
 
 def move() { // for a Plane.
-  var p0x = this.p0x;
-  var p0y = this.p0y;
-  var p0z = this.p0z;
+  var p0 = this.p0:vec4
 
-  var p1x = this.p1x;
-  var p1y = this.p1y;
-  var p1z = this.p1z;
+  var p1 = this.p1:vec4
 
-  var t = this.t;
-  var dot = this.dot;
-  var omega = this.omega;
+  var t = this.t:float
+  var dot = this.dot:float
+  var omega = this.omega:float
 
-  var t1 = sin((1-t) * omega) / sin(omega);
-  var t2 = sin(t * omega) / sin(omega);
+  var t1:float = sin((1-t) * omega) / sin(omega)
+  var t2:float = sin(t * omega) / sin(omega)
 
-  var px = t1 * p0x + t2 * p1x;
-  var py = t1 * p0y + t2 * p1y;
-  var pz = t1 * p0z + t2 * p1z;
+  var p = (t1 * p0) + (t2 * p1)
 
   var r = 200;
 
-  this.x = r * px + 256;
-  this.y = r * py + 256;
-  this.z = r * pz + 256;
+  this.pos = r * p + 256
 }
 
 static setup() {
-  Airport.loadData(Airports);   // Lat Long <- data
-  var count = Airport.count;    // number of data
-  Airport.setNormalLocation();  // nx, ny, nz <- f(Lat, Long)
-  Airport.fillCuboid("x", "y", "z", 512, 512, 24, 8); // x, y, z, count 
-  Airport.setPlace(Place);      // place.x, place.y, place.z <- nx, ny, nz
-  Airport.setLocation();        // x, y, z <- nx, ny, nz
-  Airport.setCount(count);
-  Airport.setColor();
+  Airport.loadData(Airports)   // Lat Long <- data
+  var count = Airport.count    // number of data
+  Airport.setNormalLocation()  // nx, ny, nz <- f(Lat, Long)
+  Airport.fillCuboid("pos", vec3(512, 512, 24), 8) // x, y, z, count 
+  Airport.setPlace(Place)      // place.x, place.y, place.z <- nx, ny, nz
+  Airport.setLocation()        // x, y, z <- nx, ny, nz
+  Airport.setCount(count)
+  Airport.setColor()
 
-  Plane.setCount(10000);
-  Plane.planeColor();
-  Plane.initT();
+  Plane.setCount(10000)
+  Plane.planeColor()
+  Plane.initT()
 
 //  Plane.maybeGoToRandomPlace(4000, 2.2);
 //  Plane.loadPlace(Place, 0);
@@ -209,16 +170,16 @@ static setup() {
 }
 
 static loop() {
-  Plane.maybeGoToRandomPlace(4000, time);
-  Plane.loadPlace(Place, 0);
-  Plane.maybeGoToRandomPlace(4000, time + 0.3);
-  Plane.loadPlace(Place, 1);
-  Plane.maybeComputeDist();
-  Plane.maybeInitT();
+  Plane.maybeGoToRandomPlace(4000, time)
+  Plane.loadPlace(Place, 0)
+  Plane.maybeGoToRandomPlace(4000, time + 0.3)
+  Plane.loadPlace(Place, 1)
+  Plane.maybeComputeDist()
+  Plane.maybeInitT()
 
-  Plane.move();
-  Plane.incrT();
+  Plane.move()
+  Plane.incrT()
 
-  Airport.render();
-  Plane.render();
+  Airport.render()
+  Plane.render()
 }

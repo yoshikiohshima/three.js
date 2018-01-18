@@ -42,7 +42,7 @@ def move() {
   }
 
   this.pos = vec4(newX, newY, newZ, 0)
-  this.d = d
+  this.d = d + vec4(0, -0.01, 0, 0)
 }
 
 def set() {
