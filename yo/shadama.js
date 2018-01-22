@@ -112,15 +112,14 @@ function ShadamaFactory(frame, optDimension, parent, optDefaultProgName, optDOMT
 
             vec3: `
   vec3 _xyz = texelFetch(u_that_xyz, ivec2(a_index), 0).xyz;
-  float _x = _xyz.x;
-  float _y = _xyz.y;
-  float _z = _xyz.z;
-  _x = floor(_x / v_step); // 8   //  [0..64), if originally within [0..512)
-  _y = floor(_y / v_step); // 8
-  _z = floor(_z / v_step); // 8
+  float _x = floor(_xyz.x / v_step); // 8   //  [0..64), if originally within [0..512)
+  float _y = floor(_xyz.y / v_step); // 8
+  float _z = floor(_xyz.z / v_step); // 8
 
   int index = int(_z * v_resolution.x * v_resolution.y + _y * v_resolution.x + _x);
   vec2 _pos = vec2(index % int(u_resolution.x), index / int(u_resolution.x));
+//  vec2 _pos = a_index;
+//    vec2 _pos = _xyz.xy;
 `
 },
 
@@ -1411,6 +1410,11 @@ uniform vec3 v_resolution;
                 // outs: [[varName, fieldName]]
                 // ins: [[varName, fieldName]]
                 // params: {shortName: value}
+
+		if (debugName == "setPlace") {
+		    debugger;
+		}
+
                 var object = objects["this"];
 
                 var targets = [];
@@ -1558,11 +1562,11 @@ uniform vec3 v_resolution;
 
         framebufferDiffuse = makeFramebuffer(gl.R32F, FW, FH);
 
-        readFramebufferBreed = makeFramebuffer(gl.R32F, T, T);
-        readFramebufferPatch = makeFramebuffer(gl.R32F, FW, FH);
+        readFramebufferBreed = makeFramebuffer(gl.RGBA32F, T, T);
+        readFramebufferPatch = makeFramebuffer(gl.RGBA32F, FW, FH);
 
-        writeFramebufferBreed = makeFramebuffer(gl.R32F, T, T);
-        writeFramebufferPatch = makeFramebuffer(gl.R32F, FW, FH);
+        writeFramebufferBreed = makeFramebuffer(gl.RGBA32F, T, T);
+        writeFramebufferPatch = makeFramebuffer(gl.RGBA32F, FW, FH);
 
         framebufferDBreed = makeFramebuffer(gl.RGBA32F, T, T);
         framebufferDPatch = makeFramebuffer(gl.RGBA32F, FW, FH);

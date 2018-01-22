@@ -38,10 +38,11 @@ def planeColor() {
 def maybeGoToRandomPlace(n:float, r:float) {
   if (this.t:float < 0) {
     var ind = floor(random(a_index.x * r) * n);
-    var x = (mod(ind, 64 * 64)) * 8;
+    var x = mod(ind, 64) * 8;
     var y = mod(floor(ind / 64), 64) * 8;
     var z = floor(ind / (64 * 64)) * 8;
 
+    this.omega = ind
     this.pos = vec4(x, y, z, 0)
   }
 }
@@ -126,7 +127,7 @@ def incrT() {
   this.t = t
 }
 
-def move() { // for a Plane.
+def move() { // for Plane.
   var p0 = this.p0:vec4
 
   var p1 = this.p1:vec4
@@ -150,21 +151,21 @@ static setup() {
   var count = Airport.count    // number of data
   Airport.setNormalLocation()  // nx, ny, nz <- f(Lat, Long)
   Airport.fillCuboid("pos", vec3(512, 512, 24), 8) // x, y, z, count 
+  Airport.setCount(count)
   Airport.setPlace(Place)      // place.x, place.y, place.z <- nx, ny, nz
   Airport.setLocation()        // x, y, z <- nx, ny, nz
-  Airport.setCount(count)
   Airport.setColor()
 
   Plane.setCount(10000)
   Plane.planeColor()
   Plane.initT()
 
-//  Plane.maybeGoToRandomPlace(4000, 2.2);
-//  Plane.loadPlace(Place, 0);
-//  Plane.maybeGoToRandomPlace(4000, -3.4);
-//  Plane.loadPlace(Place, 1);
-//  Plane.maybeComputeDist();
-//  Plane.maybeInitT();
+  Plane.maybeGoToRandomPlace(4000, 2.2);
+  Plane.loadPlace(Place, 0);
+  Plane.maybeGoToRandomPlace(4000, -3.4);
+  Plane.loadPlace(Place, 1);
+  Plane.maybeComputeDist();
+  Plane.maybeInitT();
 
   loop.start();
 }
