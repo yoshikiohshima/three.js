@@ -9,7 +9,6 @@ uniform float opacity;
 
 out vec4 glFragColor;
 
-
 #include <common>
 #include <color_pars_fragment>
 #include <uv_pars_fragment>

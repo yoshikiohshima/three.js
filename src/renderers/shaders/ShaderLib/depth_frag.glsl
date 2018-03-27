@@ -14,7 +14,6 @@
 
 out vec4 glFragColor;
 
-
 void main() {
 
 	#include <clipping_planes_fragment>

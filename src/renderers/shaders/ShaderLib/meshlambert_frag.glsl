@@ -12,7 +12,6 @@ in vec3 vLightFront;
 
 out vec4 glFragColor;
 
-
 #include <common>
 #include <packing>
 #include <dithering_pars_fragment>

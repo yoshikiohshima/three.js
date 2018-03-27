@@ -33,6 +33,7 @@ void main() {
 	outgoingLight = diffuseColor.rgb; // simple shader
 
 	glFragColor = vec4( outgoingLight, diffuseColor.a );
+
 	#include <premultiplied_alpha_fragment>
 	#include <tonemapping_fragment>
 	#include <encodings_fragment>

@@ -11,4 +11,5 @@
 	#endif
 
 	glFragColor.rgb = mix( glFragColor.rgb, fogColor, fogFactor );
+
 #endif

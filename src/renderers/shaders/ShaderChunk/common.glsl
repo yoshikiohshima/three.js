@@ -95,4 +95,3 @@ float linearToRelativeLuminance( const in vec3 color ) {
 }
 
 vec4 texture2D(sampler2D s, vec2 uv) {return texture(s, uv);}
-
