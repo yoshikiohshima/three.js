@@ -201,12 +201,19 @@ function convertToGLSL1( string, type ) {
 	pattern = '^([ \t]*)(glFragColor)(\\.[argbxyzw]+|)([ \t]+)(\\*?=)([ \t])+(.*)$';
 	var fragUseRegexp = new RegExp(pattern);
 
+	var textureStr = 'vec4 texture2D(sampler2D s, vec2 uv) {return texture(s, uv);}';
+
 	var strs = string.split('\n');
 
 	function replacer(str) {
 		// First check the special case, where glFragColor is defined as 'out'.
 		// gl_FragColor is built in so we just remove it
 		if (fragDefRegexp.exec(str)) {return ""}
+
+		// Another special case: define texture2D only when it is in GLSL3.00
+		if (textureStr === str) {
+		    return ""
+		}
 
 		// It could be the use of glFragColor
 		// Then, replace it with gl_FragColor globally
