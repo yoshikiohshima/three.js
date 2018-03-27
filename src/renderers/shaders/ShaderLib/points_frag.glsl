@@ -1,9 +1,7 @@
 uniform vec3 diffuse;
 uniform float opacity;
 
-#if defined(NEEDSGLSL300)
 out vec4 glFragColor;
-#endif
 
 #include <common>
 #include <packing>
@@ -28,11 +26,7 @@ void main() {
 
 	outgoingLight = diffuseColor.rgb;
 
-#if defined(NEEDSGLSL300)
 	glFragColor = vec4( outgoingLight, diffuseColor.a );
-#else
-	gl_FragColor = vec4( outgoingLight, diffuseColor.a );
-#endif
 
 	#include <premultiplied_alpha_fragment>
 	#include <tonemapping_fragment>

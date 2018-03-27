@@ -1,14 +1,8 @@
 uniform sampler2D tEquirect;
 
-#if defined(NEEDSGLSL300)
 in vec3 vWorldPosition;
-#else
-varying vec3 vWorldPosition;
-#endif
 
-#if defined(NEEDSGLSL300)
 out vec4 glFragColor;
-#endif
 
 #include <common>
 
@@ -22,10 +16,6 @@ void main() {
 
 	sampleUV.x = atan( direction.z, direction.x ) * RECIPROCAL_PI2 + 0.5;
 
-#if defined(NEEDSGLSL300)
 	glFragColor = texture2D( tEquirect, sampleUV );
-#else
-	gl_FragColor = texture2D( tEquirect, sampleUV );
-#endif
 
 }

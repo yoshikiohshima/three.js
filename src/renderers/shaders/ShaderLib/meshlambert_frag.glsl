@@ -2,25 +2,15 @@ uniform vec3 diffuse;
 uniform vec3 emissive;
 uniform float opacity;
 
-#if defined(NEEDSGLSL300)
 in vec3 vLightFront;
-#else
-varying vec3 vLightFront;
-#endif
 
 #ifdef DOUBLE_SIDED
 
-#if defined(NEEDSGLSL300)
 	in vec3 vLightBack;
-#else
-	varying vec3 vLightBack;
-#endif
 
 #endif
 
-#if defined(NEEDSGLSL300)
 out vec4 glFragColor;
-#endif
 
 
 #include <common>
@@ -87,11 +77,7 @@ void main() {
 
 	#include <envmap_fragment>
 
-#if defined(NEEDSGLSL300)
 	glFragColor = vec4( outgoingLight, diffuseColor.a );
-#else
-	gl_FragColor = vec4( outgoingLight, diffuseColor.a );
-#endif
 
 	#include <tonemapping_fragment>
 	#include <encodings_fragment>
